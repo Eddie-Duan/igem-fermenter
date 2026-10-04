@@ -60,7 +60,10 @@ jobs:
         run: |
           set -euo pipefail
           flutter build apk --debug --no-pub 2>&1 | tee build/validation/build.txt
-          sha256sum build/app/outputs/flutter-apk/app-debug.apk > build/validation/apk-sha256.txt
+          # Flutter 固定输出 app-debug.apk，这里改名，避免和另一个 App 的安装包混淆。
+          mv build/app/outputs/flutter-apk/app-debug.apk \
+             build/app/outputs/flutter-apk/fermenter-debug.apk
+          sha256sum build/app/outputs/flutter-apk/fermenter-debug.apk > build/validation/apk-sha256.txt
       - name: Upload validation logs
         if: always()
         uses: actions/upload-artifact@v4
@@ -72,7 +75,7 @@ jobs:
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: android-internal-debug-${{ github.sha }}
-          path: mobile_app/build/app/outputs/flutter-apk/app-debug.apk
+          name: fermenter-android-debug-${{ github.sha }}
+          path: mobile_app/build/app/outputs/flutter-apk/fermenter-debug.apk
           retention-days: 14
           if-no-files-found: error

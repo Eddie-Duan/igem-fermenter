@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 自适应图标的背景色。前景 PNG 会铺满整个图层，正常情况下看不到它。 -->
+    <color name="ic_launcher_background">#147D79</color>
+</resources>
