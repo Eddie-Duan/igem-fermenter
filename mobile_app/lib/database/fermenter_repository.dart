@@ -25,8 +25,8 @@ abstract class FermenterRepository {
 class ProjectDraft {
   const ProjectDraft({
     required this.name,
-    required this.strain,
-    required this.note,
+    this.strain,
+    this.note,
     required this.targetTempC,
     required this.timeScale,
   });

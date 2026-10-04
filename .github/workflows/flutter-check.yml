@@ -1,0 +1,78 @@
+name: Flutter app check
+
+# 构建与校验交给 GitHub Actions（本机不装 Flutter SDK）。
+# 参照 esp32-medication-device 的 android-check.yml：固定 Flutter 版本，
+# analyze + test + 打 debug APK；改动仅限 mobile_app 时触发。
+on:
+  push:
+    branches: [main]
+    paths: ['mobile_app/**', '.github/workflows/flutter-check.yml']
+  pull_request:
+    paths: ['mobile_app/**', '.github/workflows/flutter-check.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: flutter-check-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    defaults:
+      run:
+        working-directory: mobile_app
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Install pinned Flutter 3.47.4
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 3 https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.47.4-stable.tar.xz -o "$RUNNER_TEMP/flutter.tar.xz"
+          printf '%s  %s\n' 5b45f0ceda99b9bebdc873e7e69f6450aeb4c30f454b505e2e62fc9255a907d3 "$RUNNER_TEMP/flutter.tar.xz" | sha256sum --check
+          tar -xf "$RUNNER_TEMP/flutter.tar.xz" -C "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/flutter/bin" >> "$GITHUB_PATH"
+      - name: Resolve dependencies
+        run: |
+          set -euo pipefail
+          mkdir -p build/validation
+          flutter --version | tee build/validation/flutter-version.txt
+          flutter config --no-analytics
+          flutter pub get
+      - name: Prepare Android SDK 36
+        run: |
+          set -euo pipefail
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" 'platforms;android-36' 'build-tools;36.0.0'
+      - name: Analyze and test
+        run: |
+          set -euo pipefail
+          # info 级提示不阻塞（保证 CI 不因代码风格抖动）；warning/error 依旧致命。
+          flutter analyze --no-pub --no-fatal-infos 2>&1 | tee build/validation/analyze.txt
+          flutter test --no-pub --reporter expanded 2>&1 | tee build/validation/tests.txt
+      - name: Build internal test APK
+        run: |
+          set -euo pipefail
+          flutter build apk --debug --no-pub 2>&1 | tee build/validation/build.txt
+          sha256sum build/app/outputs/flutter-apk/app-debug.apk > build/validation/apk-sha256.txt
+      - name: Upload validation logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: flutter-validation-${{ github.sha }}
+          path: mobile_app/build/validation/*.txt
+          retention-days: 14
+          if-no-files-found: warn
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-internal-debug-${{ github.sha }}
+          path: mobile_app/build/app/outputs/flutter-apk/app-debug.apk
+          retention-days: 14
+          if-no-files-found: error

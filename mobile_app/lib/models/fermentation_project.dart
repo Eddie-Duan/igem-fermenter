@@ -37,6 +37,9 @@ class FermentationProject {
     this.heaterOn = false,
     this.peakOd,
     this.harvestAtSeconds,
+    this.lastTemperatureC,
+    this.lastPh,
+    this.lastOd,
   });
 
   final int id;
@@ -64,6 +67,11 @@ class FermentationProject {
   final double? peakOd;
   final int? harvestAtSeconds; // simSeconds 时刻触发收获
 
+  // -- 最近一次读数（首页卡片展示用，避免为每个批次整体加载读数） --
+  final double? lastTemperatureC;
+  final double? lastPh;
+  final double? lastOd;
+
   bool get isRunning =>
       status == FermenterStatus.active || status == FermenterStatus.harvest;
 
@@ -84,6 +92,9 @@ class FermentationProject {
     bool? heaterOn,
     double? Function()? peakOd,
     int? Function()? harvestAtSeconds,
+    double? lastTemperatureC,
+    double? lastPh,
+    double? lastOd,
   }) =>
       FermentationProject(
         id: id,
@@ -102,6 +113,9 @@ class FermentationProject {
         peakOd: peakOd != null ? peakOd() : this.peakOd,
         harvestAtSeconds:
             harvestAtSeconds != null ? harvestAtSeconds() : this.harvestAtSeconds,
+        lastTemperatureC: lastTemperatureC ?? this.lastTemperatureC,
+        lastPh: lastPh ?? this.lastPh,
+        lastOd: lastOd ?? this.lastOd,
       );
 
   Map<String, Object?> toMap() => {
@@ -118,6 +132,9 @@ class FermentationProject {
         'heater_on': heaterOn ? 1 : 0,
         'peak_od': peakOd,
         'harvest_at_seconds': harvestAtSeconds,
+        'last_temp_c': lastTemperatureC,
+        'last_ph': lastPh,
+        'last_od': lastOd,
         'created_at': createdAt.millisecondsSinceEpoch,
         'updated_at': updatedAt.millisecondsSinceEpoch,
       };
@@ -137,6 +154,9 @@ class FermentationProject {
         heaterOn: (row['heater_on'] as int) != 0,
         peakOd: (row['peak_od'] as num?)?.toDouble(),
         harvestAtSeconds: row['harvest_at_seconds'] as int?,
+        lastTemperatureC: (row['last_temp_c'] as num?)?.toDouble(),
+        lastPh: (row['last_ph'] as num?)?.toDouble(),
+        lastOd: (row['last_od'] as num?)?.toDouble(),
         createdAt:
             DateTime.fromMillisecondsSinceEpoch(row['created_at'] as int),
         updatedAt:

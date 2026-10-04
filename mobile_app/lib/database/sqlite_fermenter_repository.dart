@@ -43,6 +43,9 @@ class SqliteFermenterRepository implements FermenterRepository {
             heater_on INTEGER NOT NULL,
             peak_od REAL,
             harvest_at_seconds INTEGER,
+            last_temp_c REAL,
+            last_ph REAL,
+            last_od REAL,
             created_at INTEGER NOT NULL,
             updated_at INTEGER NOT NULL
           )''');
