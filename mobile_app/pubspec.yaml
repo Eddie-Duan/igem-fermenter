@@ -1,0 +1,32 @@
+name: fermenter_app
+description: iGEM fermenter companion - monitor temperature, pH and turbidity, detect the harvest moment, and control stirring and heating.
+publish_to: "none"
+version: 0.1.0+1
+
+environment:
+  sdk: ">=3.12.0 <4.0.0"
+  flutter: ">=3.44.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  # 本地偏好（如仿真速度），与参考项目保持一致。
+  shared_preferences: ^2.5.3
+  # 本地存储：项目与读数。
+  sqflite: ^2.4.2
+  path: ^1.9.1
+  path_provider: ^2.1.5
+  # 导出 CSV 分享。
+  share_plus: ^10.1.4
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: 3.0.0
+  # 单元测试里用 FFI 版本的 sqflite，避免依赖本机 SQLite。
+  sqflite_common_ffi: ^2.4.3
+
+flutter:
+  uses-material-design: true
