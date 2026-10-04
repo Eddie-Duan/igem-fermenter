@@ -159,7 +159,7 @@ class _ChartPainter extends CustomPainter {
       ..color = labelStyle.color!.withValues(alpha: 0.25)
       ..strokeWidth = 1;
     for (final hour in hourTicks) {
-      final x = px(hour);
+      final x = px(hour.toDouble());
       canvas.drawLine(Offset(x, plot.top), Offset(x, plot.bottom), tickPaint);
       gridLabel
         ..text = TextSpan(text: '${hour.round()}h', style: labelStyle)
@@ -255,7 +255,8 @@ class _ChartPainter extends CustomPainter {
               color: color))
       ..layout(maxWidth: 80);
     gridLabel.paint(canvas,
-        Offset(lastP.dx.clamp(plot.left, plot.right - 80), lastP.dy - 18));
+        Offset(lastP.dx.clamp(plot.left, plot.right - 80).toDouble(),
+            lastP.dy - 18));
   }
 
   static List<int> _hourTicks(double maxHours) {

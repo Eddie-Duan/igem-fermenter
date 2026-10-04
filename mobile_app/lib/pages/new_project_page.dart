@@ -138,7 +138,7 @@ class _NewProjectPageState extends State<NewProjectPage> {
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    '1 real second = ${_timeScale} simulated seconds '
+                    '1 real second = $_timeScale simulated seconds '
                     '($_timeScale simulated minutes per real minute). '
                     'A 18 h run takes about ${(18 * 3600 / _timeScale).round() ~/ 60} min.',
                     style: Theme.of(context)

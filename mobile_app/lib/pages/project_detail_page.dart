@@ -311,7 +311,7 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 880),
             child: RefreshIndicator(
-              onRefresh: () => data.openProject(widget.projectId),
+              onRefresh: () => data.selectProject(widget.projectId),
               child: ListView(
                 physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.all(20),
@@ -461,7 +461,6 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
     final current =
         readings.isEmpty ? null : readings.last;
     final previous = readings.length > 1 ? readings[readings.length - 2] : null;
-    final scheme = Theme.of(context).colorScheme;
     return LayoutBuilder(builder: (context, constraints) {
       final columns = constraints.maxWidth >= 680 ? 3 : 1;
       final width = (constraints.maxWidth - (columns - 1) * 12) / columns;
@@ -611,8 +610,8 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
                 padding: const EdgeInsets.fromLTRB(0, 0, 8, 8),
                 child: Row(
                   children: [
-                    Text('${ControlState.minRpm}',
-                        style: const TextStyle(fontSize: 12)),
+                    const Text('${ControlState.minRpm}',
+                        style: TextStyle(fontSize: 12)),
                     Expanded(
                       child: Slider(
                         value: _rpm.toDouble().clamp(
@@ -628,8 +627,8 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
                         onChangeEnd: (_) => unawaited(_persistControls()),
                       ),
                     ),
-                    Text('${ControlState.maxRpm}',
-                        style: const TextStyle(fontSize: 12)),
+                    const Text('${ControlState.maxRpm}',
+                        style: TextStyle(fontSize: 12)),
                   ],
                 ),
               ),

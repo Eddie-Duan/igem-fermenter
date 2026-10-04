@@ -186,7 +186,8 @@ class FermenterController extends ChangeNotifier {
     }
   }
 
-  Future<void> openProject(int id) async {
+  /// 选择要查看的批次（与只读 getter [openProject] 区分开）。
+  Future<void> selectProject(int id) async {
     final revision = ++_revision;
     _openProjectId = id;
     await _load(revision);

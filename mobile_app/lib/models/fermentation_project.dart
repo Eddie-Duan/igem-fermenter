@@ -14,8 +14,8 @@ enum FermenterStatus {
 
   int get dbValue => index;
 
-  static FermenterStatus fromDb(int value) =>
-      FermenterStatus.values[value.clamp(0, FermenterStatus.values.length - 1)];
+  static FermenterStatus fromDb(int value) => FermenterStatus
+      .values[value.clamp(0, FermenterStatus.values.length - 1).toInt()];
 }
 
 /// 一个发酵批次项目。控制状态（搅拌/加热）作为列直接存在项目表里，
