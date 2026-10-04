@@ -28,7 +28,7 @@ void main() {
   test('heater drives temperature toward target, cooling pulls it back', () {
     // 状态化采集：poll 内部会累计温度。
     final source = SimulatedSensorSource(random: Random(1));
-    final control = ControlState(
+    const control = ControlState(
         stirrerOn: false, stirrerRpm: 200, heaterOn: true, targetTempC: 37);
 
     double polled(double hours) => source
@@ -68,7 +68,7 @@ void main() {
 
   test('poll produces monotonic sim time and valid ranges', () {
     final source = SimulatedSensorSource();
-    final control = const ControlState.idle();
+    const control = ControlState.idle();
     SensorReading? previous;
     for (var sim = 120; sim <= 1200; sim += 120) {
       final reading = source.poll(

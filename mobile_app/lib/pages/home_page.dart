@@ -17,8 +17,6 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  bool _working = false;
-
   FermenterController get data => widget.controller;
 
   void _message(String text) {
@@ -36,54 +34,13 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _openProject(FermentationProject project) async {
-    await data.openProject(project.id);
+    await data.selectProject(project.id);
     if (!mounted) return;
     await Navigator.of(context).push<void>(
       MaterialPageRoute(
           builder: (_) => ProjectDetailPage(controller: data, projectId: project.id)),
     );
     if (mounted) await data.refresh();
-  }
-
-  Future<void> _pauseOrResume(FermentationProject project) async {
-    setState(() => _working = true);
-    try {
-      if (project.status == FermenterStatus.paused) {
-        await data.resume(project.id);
-      } else if (project.status == FermenterStatus.active ||
-          project.status == FermenterStatus.harvest) {
-        await data.pause(project.id);
-      }
-    } catch (_) {
-      _message('Action failed, please retry.');
-    } finally {
-      if (mounted) setState(() => _working = false);
-    }
-  }
-
-  Future<void> _delete(FermentationProject project) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete this batch?'),
-        content: Text('"${project.name}" and all its readings will be removed permanently.'),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Cancel')),
-          FilledButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('Delete')),
-        ],
-      ),
-    );
-    if (confirmed != true || !mounted) return;
-    try {
-      await data.delete(project.id);
-      _message('Batch deleted.');
-    } catch (_) {
-      _message('Delete failed, please retry.');
-    }
   }
 
   @override
@@ -216,9 +173,11 @@ class _HomePageState extends State<HomePage> {
                 children: [
                   _miniMetric('Temp', '${project.lastTemperatureC == null ? '—' : number(project.lastTemperatureC!)} °C'),
                   const SizedBox(width: 16),
-                  _miniMetric('pH', '${project.lastPh == null ? '—' : number(project.lastPh!)}'),
+                  _miniMetric(
+                      'pH', project.lastPh == null ? '—' : number(project.lastPh!)),
                   const SizedBox(width: 16),
-                  _miniMetric('OD600', '${project.lastOd == null ? '—' : number(project.lastOd!, 3)}'),
+                  _miniMetric('OD600',
+                      project.lastOd == null ? '—' : number(project.lastOd!, 3)),
                 ],
               ),
               const SizedBox(height: 10),

@@ -8,11 +8,10 @@ class ControlState {
     required this.targetTempC,
   });
 
-  const ControlState.idle({double targetTempC = 30})
+  const ControlState.idle({this.targetTempC = 30})
       : stirrerOn = false,
         stirrerRpm = 200,
-        heaterOn = false,
-        targetTempC = targetTempC;
+        heaterOn = false;
 
   final bool stirrerOn;
   final int stirrerRpm; // 100–300 rpm
