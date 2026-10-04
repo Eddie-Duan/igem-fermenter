@@ -255,7 +255,8 @@ class _ChartPainter extends CustomPainter {
               color: color))
       ..layout(maxWidth: 80);
     gridLabel.paint(canvas,
-        Offset(lastP.dx.clamp(plot.left, plot.right - 80), lastP.dy - 18));
+        Offset(lastP.dx.clamp(plot.left, plot.right - 80).toDouble(),
+            lastP.dy - 18));
   }
 
   static List<int> _hourTicks(double maxHours) {

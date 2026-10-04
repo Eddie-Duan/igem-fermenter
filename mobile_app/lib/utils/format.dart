@@ -19,6 +19,6 @@ String number(double value, [int digits = 2]) => value.toStringAsFixed(digits);
 /// 采收预测：距当前仿真时刻的剩余时长提示文案。
 String harvestCountdownLabel(int simSeconds, double totalPerHour) {
   final remaining =
-      ((totalPerHour * 3600) - simSeconds).ceil().clamp(0, 1 << 62);
+      ((totalPerHour * 3600) - simSeconds).ceil().clamp(0, 1 << 62).toInt();
   return '~${simDurationLabel(remaining)} to detected harvest curve (est.)';
 }

@@ -68,16 +68,16 @@ class SimulatedSensorSource implements SensorSource {
 
   /// 基础 pH 曲线：增殖期缓慢产酸下降；裂解期回升。
   static double phAt(double t) {
-    double ph;
+    final double drifted;
     if (t <= _growthEndHour) {
-      ph = _initialPh - 0.045 * t.clamp(0.0, _growthEndHour);
+      drifted = _initialPh - 0.045 * t;
     } else if (t <= _plateauEndHour) {
-      ph = _initialPh - 0.045 * _growthEndHour;
+      drifted = _initialPh - 0.045 * _growthEndHour;
     } else {
-      ph = (_initialPh - 0.045 * _growthEndHour) +
-          0.03 * (t - _plateauEndHour).clamp(0.0, 7.0);
+      final lysisHours = (t - _plateauEndHour).clamp(0.0, 7.0).toDouble();
+      drifted = (_initialPh - 0.045 * _growthEndHour) + 0.03 * lysisHours;
     }
-    return ph.clamp(6.0, 7.4);
+    return drifted.clamp(6.0, 7.4).toDouble();
   }
 
   /// 推进一次采样。
