@@ -43,4 +43,25 @@ void main() {
     expect(find.text('Batch A'), findsOneWidget);
     expect(find.text('Active'), findsOneWidget);
   });
+
+  testWidgets('empty home can load the demo sample batch', (tester) async {
+    final repo = await SqliteFermenterRepository.open(
+        factory: databaseFactoryFfiNoIsolate,
+        path: inMemoryDatabasePath);
+    final controller = FermenterController(
+        repository: repo, clock: () => DateTime(2026, 1, 1));
+    addTearDown(controller.dispose);
+    addTearDown(repo.close);
+    await controller.refresh();
+
+    await tester.pumpWidget(FermenterApp(controller: controller));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Load sample data'));
+    await tester.pumpAndSettle();
+
+    // 样例批次跑完整周期，应该直接落到收获告警页。
+    expect(find.text('Harvest time!'), findsOneWidget);
+    expect(find.text('Time course'), findsOneWidget);
+  });
 }

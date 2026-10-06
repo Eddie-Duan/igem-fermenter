@@ -66,6 +66,31 @@ void main() {
     expect(await repo.countReadings(controller.openProject!.id), 5);
   });
 
+  test('loadSampleBatch records a whole cycle and flags harvest', () async {
+    final repo = await open();
+    final controller = make(repo);
+    addTearDown(controller.dispose);
+    addTearDown(repo.close);
+
+    final id = await controller.loadSampleBatch();
+    final project = controller.projects.single;
+
+    expect(project.id, id);
+    expect(controller.openProject?.id, id);
+    expect(project.status, FermenterStatus.harvest);
+    expect(project.peakOd, closeTo(1.25, 0.05));
+    // 收获信号应在裂解开始（11h）后不久出现。
+    expect(project.harvestAtSeconds, isNotNull);
+    expect(project.harvestAtSeconds! / 3600, inInclusiveRange(11.0, 13.0));
+    expect(project.simSeconds, FermenterController.sampleBatchSeconds);
+    // 每 120 仿真秒一条读数，直到 20 小时。
+    const expected =
+        FermenterController.sampleBatchSeconds ~/
+            FermenterController.sampleIntervalSeconds;
+    expect(controller.openReadings, hasLength(expected));
+    expect(await repo.countReadings(id), expected);
+  });
+
   test('paused projects do not record new readings', () async {
     final repo = await open();
     final controller = make(repo);

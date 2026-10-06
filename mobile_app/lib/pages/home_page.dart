@@ -17,6 +17,8 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
+  bool _loadingSample = false;
+
   FermenterController get data => widget.controller;
 
   void _message(String text) {
@@ -31,6 +33,32 @@ class _HomePageState extends State<HomePage> {
       MaterialPageRoute(builder: (_) => NewProjectPage(controller: data)),
     );
     if (created == true && mounted) _message('Batch started.');
+  }
+
+  /// 生成一个跑完整周期的演示批次，并直接打开它，方便一次性检查
+  /// 曲线、收获告警、统计与导出在无硬件情况下的表现。
+  Future<void> _loadSampleData() async {
+    setState(() => _loadingSample = true);
+    int? id;
+    try {
+      id = await data.loadSampleBatch();
+    } catch (_) {
+      id = null;
+    }
+    if (!mounted) return;
+    setState(() => _loadingSample = false);
+    if (id == null) {
+      _message('Could not load sample data.');
+      return;
+    }
+    _message('Sample batch loaded.');
+    final projectId = id;
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+          builder: (_) =>
+              ProjectDetailPage(controller: data, projectId: projectId)),
+    );
+    if (mounted) await data.refresh();
   }
 
   Future<void> _openProject(FermentationProject project) async {
@@ -105,22 +133,22 @@ class _HomePageState extends State<HomePage> {
   Widget _emptyView() => ListView(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.all(24),
-        children: const [
-          SizedBox(height: 48),
-          Icon(Icons.biotech_outlined, size: 64),
-          SizedBox(height: 16),
-          Text('No fermentations yet',
+        children: [
+          const SizedBox(height: 48),
+          const Icon(Icons.biotech_outlined, size: 64),
+          const SizedBox(height: 16),
+          const Text('No fermentations yet',
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
-          SizedBox(height: 8),
-          Text(
+          const SizedBox(height: 8),
+          const Text(
             'Tap "New Batch" to start monitoring\n'
             'temperature, pH and turbidity — the app will tell you\n'
             'when the turbidity drop means it is time to harvest.',
             textAlign: TextAlign.center,
           ),
-          SizedBox(height: 32),
-          _SimulationNote(),
+          const SizedBox(height: 32),
+          _sampleNote(),
         ],
       );
 
@@ -128,7 +156,7 @@ class _HomePageState extends State<HomePage> {
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 96),
         children: [
-          const _SimulationNote(),
+          _sampleNote(),
           const SizedBox(height: 12),
           for (final project in data.projects) ...[
             _projectCard(project),
@@ -210,31 +238,57 @@ class _HomePageState extends State<HomePage> {
               style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
         ],
       );
+
+  Widget _sampleNote() =>
+      _SimulationNote(busy: _loadingSample, onLoadSample: _loadSampleData);
 }
 
-/// 无硬件阶段的提示条。
+/// 无硬件阶段的提示条 + 「载入样例数据」入口。
 class _SimulationNote extends StatelessWidget {
-  const _SimulationNote();
+  const _SimulationNote({required this.busy, required this.onLoadSample});
+
+  final bool busy;
+  final VoidCallback onLoadSample;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
       decoration: BoxDecoration(
         color: scheme.secondaryContainer,
         borderRadius: BorderRadius.circular(12),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.memory_outlined, size: 20, color: scheme.onSecondaryContainer),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              'Simulated device for now — the ESP32 hardware interface will be plugged in next.',
-              style: TextStyle(
-                  fontSize: 12.5, color: scheme.onSecondaryContainer),
+          Row(
+            children: [
+              Icon(Icons.memory_outlined,
+                  size: 20, color: scheme.onSecondaryContainer),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Simulated device for now — the ESP32 hardware interface will be plugged in next.',
+                  style: TextStyle(
+                      fontSize: 12.5, color: scheme.onSecondaryContainer),
+                ),
+              ),
+            ],
+          ),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton.icon(
+              onPressed: busy ? null : onLoadSample,
+              icon: busy
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Icon(Icons.auto_awesome, size: 18),
+              label: Text(
+                  busy ? 'Generating sample data…' : 'Load sample data'),
             ),
           ),
         ],

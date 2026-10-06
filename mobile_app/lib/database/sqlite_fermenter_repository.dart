@@ -128,6 +128,17 @@ class SqliteFermenterRepository implements FermenterRepository {
   }
 
   @override
+  Future<void> addReadings(List<SensorReading> readings) async {
+    if (readings.isEmpty) return;
+    final batch = _db.batch();
+    for (final reading in readings) {
+      batch.insert('readings', reading.toMap()..remove('id'));
+    }
+    await batch.commit(noResult: true);
+    _changes.add(null);
+  }
+
+  @override
   Future<int> countReadings(int projectId) async {
     final count = Sqflite.firstIntValue(await _db.rawQuery(
         'SELECT COUNT(*) FROM readings WHERE project_id = ?', [projectId]));

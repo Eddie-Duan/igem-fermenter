@@ -16,6 +16,10 @@ abstract class FermenterRepository {
   Future<List<SensorReading>> readings(int projectId,
       {int limit = 0, bool ascending = false});
   Future<int> addReading(SensorReading reading);
+
+  /// 批量写入（单个事务）。生成整段样例历史时用，避免几百次逐条提交。
+  Future<void> addReadings(List<SensorReading> readings);
+
   Future<int> countReadings(int projectId);
   Future<void> deleteReadings(int projectId);
   Future<void> close();
