@@ -502,10 +502,13 @@ class _HarvestCurvePainter extends CustomPainter {
       const padH = 8.0, padV = 4.0;
       final width = text.width + padH * 2;
       final height = text.height + padV * 2;
+      // clamp 在非常量参数下静态类型是 num，这里显式收窄回 double。
       final left = (p.dx + 10)
-          .clamp(chart.left, math.max(chart.left, chart.right - width));
+          .clamp(chart.left, math.max(chart.left, chart.right - width))
+          .toDouble();
       final top = (p.dy + 8)
-          .clamp(chart.top, math.max(chart.top, chart.bottom - height));
+          .clamp(chart.top, math.max(chart.top, chart.bottom - height))
+          .toDouble();
       canvas.drawRRect(
         RRect.fromRectAndRadius(
             Rect.fromLTWH(left, top, width, height), const Radius.circular(9)),
