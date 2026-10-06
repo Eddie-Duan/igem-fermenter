@@ -35,7 +35,8 @@ void main() {
     expect(csv, contains('"0","0"'));
     expect(csv, contains('"30.00","7.00","0.500","manual","\'=SUM(1,1)"'));
     expect(csv, contains('"1","120"'));
-    expect(csv, contains('"1.2345"'));
+    // OD600 按 3 位小数导出（仿真噪声本身 ±0.005，更细的小数位没有意义）。
+    expect(csv, contains('"31.55","7.00","1.234","sim"'));
   });
 
   test('empty readings still export a header', () {

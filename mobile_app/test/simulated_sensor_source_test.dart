@@ -26,42 +26,39 @@ void main() {
   });
 
   test('heater drives temperature toward target, cooling pulls it back', () {
-    // 状态化采集：poll 内部会累计温度。
+    // 温度是「累计式」积分：poll 每次只按 dtSeconds 推进一步，
+    // 所以要像 Controller 那样按 120 秒步长反复采样，才能把温度推上去。
+    const sampleSeconds = 120;
     final source = SimulatedSensorSource(random: Random(1));
-    const control = ControlState(
+    const heating = ControlState(
         stirrerOn: false, stirrerRpm: 200, heaterOn: true, targetTempC: 37);
 
-    double polled(double hours) => source
+    var seq = 0;
+    double sample(int simSeconds, ControlState control) => source
         .poll(
           projectId: 1,
-          seq: (hours * 30).round(),
+          seq: seq++,
           control: control,
-          simSeconds: (hours * 3600).round(),
-          dtSeconds: 120,
+          simSeconds: simSeconds,
+          dtSeconds: sampleSeconds,
         )
         .temperatureC;
 
-    // 加热 6 个仿真小时：应显著高于初始 24°C
-    var last = polled(1);
-    for (var h = 2.0; h <= 6.0; h += 1) {
-      last = polled(h);
+    // 加热 6 个仿真小时（3°C/h）：足以把初始 24°C 拉到目标 37°C
+    var last = 0.0;
+    for (var sim = sampleSeconds; sim <= 6 * 3600; sim += sampleSeconds) {
+      last = sample(sim, heating);
     }
     expect(last, greaterThan(30));
 
-    // 关闭加热再晾 4 个小时：温度开始回落
-    final off = control.copyWith(heaterOn: false);
+    // 关闭加热再晾 4 个小时（1.5°C/h）：温度开始回落
+    final coolingControl = heating.copyWith(heaterOn: false);
     var cooling = last;
-    for (var h = 7.0; h <= 10.0; h += 1) {
-      cooling = source
-          .poll(
-            projectId: 1,
-            seq: (h * 30).round(),
-            control: off,
-            simSeconds: (h * 3600).round(),
-            dtSeconds: 120,
-          )
-          .temperatureC;
-      expect(cooling, lessThan(37 + 0.5));
+    for (var sim = 6 * 3600 + sampleSeconds;
+        sim <= 10 * 3600;
+        sim += sampleSeconds) {
+      cooling = sample(sim, coolingControl);
+      expect(cooling, lessThan(37.5));
     }
     expect(cooling, lessThan(last));
   });
