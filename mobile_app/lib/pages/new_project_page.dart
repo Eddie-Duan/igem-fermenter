@@ -55,7 +55,7 @@ class _NewProjectPageState extends State<NewProjectPage> {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return Scaffold(
-      appBar: AppBar(title: const Text('New Batch')),
+      appBar: AppBar(title: const Text('New batch')),
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(
@@ -70,12 +70,12 @@ class _NewProjectPageState extends State<NewProjectPage> {
                     textInputAction: TextInputAction.next,
                     decoration: const InputDecoration(
                       labelText: 'Batch name',
-                      hintText: 'e.g. Batch A - lysis strain',
+                      hintText: 'e.g. Batch A (lysis strain)',
                       border: OutlineInputBorder(),
                     ),
                     validator: (value) =>
                         (value == null || value.trim().isEmpty)
-                            ? 'Give this batch a name'
+                            ? 'Enter a name for this batch'
                             : null,
                   ),
                   const SizedBox(height: 16),
@@ -138,9 +138,9 @@ class _NewProjectPageState extends State<NewProjectPage> {
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    '1 real second = $_timeScale simulated seconds '
-                    '($_timeScale simulated minutes per real minute). '
-                    'A 18 h run takes about ${(18 * 3600 / _timeScale).round() ~/ 60} min.',
+                    'Simulated time runs ${_timeScale}× faster than real time, '
+                    'so a full 18 h run takes about '
+                    '${(18 * 3600 / _timeScale).round() ~/ 60} min.',
                     style: Theme.of(context)
                         .textTheme
                         .bodySmall
@@ -193,11 +193,11 @@ class _NewProjectPageState extends State<NewProjectPage> {
           const SizedBox(width: 10),
           Expanded(
             child: Text(
-              'Two-phase fermentation (wiki): during growth the turbidity '
-              '(OD600) rises; when cells lyse, it drops rapidly. The app '
-              'detects that sustained drop and raises the "Harvest time" '
-              'signal automatically. Heating and stirring are simulated for '
-              'now — hardware comes later.',
+              'Two-phase fermentation: turbidity (OD600) rises while the cells '
+              'grow, then falls sharply once they lyse. The app watches for '
+              'that sustained drop and raises the harvest alert automatically. '
+              'Stirring and heating are simulated until the hardware is '
+              'connected.',
               style: TextStyle(
                   fontSize: 12.5, color: scheme.onTertiaryContainer),
             ),

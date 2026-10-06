@@ -67,7 +67,7 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
         ),
       );
     } catch (_) {
-      _message('Control update failed.');
+      _message('Could not update the controls.');
     }
   }
 
@@ -79,7 +79,7 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
         await data.pause(project.id);
       }
     } catch (_) {
-      _message('Action failed, please retry.');
+      _message('Could not update the batch. Please try again.');
     }
   }
 
@@ -88,7 +88,7 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Mark as harvested?'),
-        content: const Text('The batch will be marked finished and stop '
+        content: const Text('The batch will be marked as finished and stop '
             'recording. You can export the data afterwards.'),
         actions: [
           TextButton(
@@ -105,7 +105,7 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
       await data.finish(project.id);
       _message('Batch finished.');
     } catch (_) {
-      _message('Action failed, please retry.');
+      _message('Could not update the batch. Please try again.');
     }
   }
 
@@ -132,7 +132,7 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
       // 重启保留控制参数，不需要重新初始化。
       _message('Batch restarted.');
     } catch (_) {
-      _message('Restart failed, please retry.');
+      _message('Could not restart the batch. Please try again.');
     }
   }
 
@@ -141,7 +141,8 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Delete this batch?'),
-        content: Text('"${project.name}" and all readings will be removed.'),
+        content: Text('All readings for "${project.name}" will be deleted. '
+            'This cannot be undone.'),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(context, false),
@@ -157,7 +158,7 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
       await data.delete(project.id);
       if (mounted) Navigator.of(context).pop();
     } catch (_) {
-      _message('Delete failed, please retry.');
+      _message('Could not delete the batch. Please try again.');
     }
   }
 
@@ -292,7 +293,7 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
                       value: 'finish',
                       child: ListTile(
                           leading: Icon(Icons.check_circle_outline),
-                          title: Text('Mark harvested / finish'))),
+                          title: Text('Mark as harvested'))),
                 const PopupMenuItem(
                     value: 'restart',
                     child: ListTile(
@@ -356,10 +357,12 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
+        // 两个徽章文字都不短，窄屏/大字号下要能换行，否则会画黄黑溢出条。
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
           children: [
             StatusChip(status: project.status),
-            const SizedBox(width: 8),
             PhaseChip(phase: phase),
           ],
         ),
@@ -442,7 +445,8 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
               child: Text(
                 project.harvestAtSeconds != null
                     ? 'Batch finished ${simDurationLabel(project.harvestAtSeconds!)} '
-                        'after start (harvest signal). Export the CSV to keep a record.'
+                        'after start, on the harvest signal. Export the CSV to '
+                        'keep a record.'
                     : 'Batch finished. Export the CSV to keep a record.',
                 style:
                     TextStyle(fontSize: 13, color: scheme.onSurfaceVariant),
@@ -470,7 +474,7 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
           title: 'Temperature',
           unit: '°C',
           value: current == null ? '—' : number(current.temperatureC),
-          subtitle: _deltaSubtitle(previous?.temperatureC, current?.temperatureC, 'targeted $targetLabel'),
+          subtitle: _deltaSubtitle(previous?.temperatureC, current?.temperatureC, 'Target $targetLabel'),
           icon: Icons.thermostat_outlined,
           color: Colors.deepOrange.shade400,
         ),
@@ -543,7 +547,7 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
             ),
             const SizedBox(height: 4),
             Text(
-              'X axis = simulated hours since start. '
+              'X axis: simulated hours since start. '
               'Manual readings are included too.',
               style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant),
             ),
@@ -722,10 +726,14 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // 标题用 Expanded 收窄：按钮文案较长，窄屏/大字号下原来会溢出。
             Row(
               children: [
-                Text('Recent readings', style: Theme.of(context).textTheme.titleSmall),
-                const Spacer(),
+                Expanded(
+                  child: Text('Recent readings',
+                      style: Theme.of(context).textTheme.titleSmall,
+                      overflow: TextOverflow.ellipsis),
+                ),
                 TextButton.icon(
                   onPressed: project.status == FermenterStatus.finished
                       ? null
@@ -746,7 +754,7 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
             else
               Column(
                 children: [
-                  _row(['sim time', 'T °C', 'pH', 'OD600'], bold: true),
+                  _row(['Sim time', 'T °C', 'pH', 'OD600'], bold: true),
                   const Divider(height: 8),
                   for (final r in recent)
                     _row([
