@@ -48,12 +48,16 @@ class LiveChart extends StatelessWidget {
       );
     }
     final color = emphasizedColor ?? _defaultColor(metric);
+    // 必须先复制一份：Controller 是原地 append 到同一个 List 上的，
+    // 直接把 readings 交给 painter 会让新旧 painter 指向同一对象，
+    // shouldRepaint 的引用比较永远相等 —— 曲线便不再随采样刷新。
+    final snapshot = List<SensorReading>.of(readings);
     return SizedBox(
       height: 200,
       width: double.infinity,
       child: CustomPaint(
         painter: _ChartPainter(
-          readings: readings,
+          readings: snapshot,
           metric: metric,
           color: color,
           peakAtHours: peakAtHours,
@@ -94,9 +98,11 @@ class _ChartPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     const left = 40.0, bottom = 24.0, top = 8.0, right = 8.0;
     final plot = Rect.fromLTRB(left, top, size.width - right, size.height - bottom);
+    // 极窄的图上可用绘图区可能反向（宽度 < 40 + 8），直接不画，避免断言崩溃。
+    if (plot.width <= 0 || plot.height <= 0) return;
 
     final points = <Offset>[];
-    var minY = double.infinity, maxY = -double.infinity, maxX = 0.0;
+    var maxX = 0.0;
     for (final reading in readings) {
       final value = switch (metric) {
         ChartMetric.turbidityOd => reading.od,
@@ -105,31 +111,14 @@ class _ChartPainter extends CustomPainter {
       };
       final x = reading.simHours;
       points.add(Offset(x, value));
-      if (value < minY) minY = value;
-      if (value > maxY) maxY = value;
       if (x > maxX) maxX = x;
     }
     if (points.isEmpty) return;
 
-    // 归一化 y 轴，留出呼吸空间。
-    var yMin = minY, yMax = maxY;
-    if ((yMax - yMin).abs() < 1e-9) yMax = yMin + 1;
-    yMax += (yMax - yMin) * 0.15;
-    yMin -= (yMax - yMin) * 0.25;
-    if (metric == ChartMetric.temperature) {
-      yMin = math.min(yMin, 18);
-      yMax = math.max(yMax, 45);
-    }
-    if (metric == ChartMetric.ph) {
-      yMin = 6.0;
-      yMax = 7.5;
-    }
-    if (metric == ChartMetric.turbidityOd) {
-      yMin = math.max(0, yMin);
-      yMax = math.max(0.2, yMax);
-    }
+    final (yMin, yMax) = _yRange(points);
+    final spanX = maxX == 0 ? 1.0 : maxX;
 
-    double px(double h) => plot.left + (h / (maxX == 0 ? 1 : maxX)) * plot.width;
+    double px(double h) => plot.left + (h / spanX) * plot.width;
     double py(double v) => plot.bottom - (v - yMin) / (yMax - yMin) * plot.height;
 
     final gridPaint = Paint()
@@ -254,9 +243,50 @@ class _ChartPainter extends CustomPainter {
               fontWeight: FontWeight.bold,
               color: color))
       ..layout(maxWidth: 80);
-    gridLabel.paint(canvas,
-        Offset(lastP.dx.clamp(plot.left, plot.right - 80).toDouble(),
-            lastP.dy - 18));
+    // 上限不能小于下限，否则 clamp 直接抛 ArgumentError。
+    final labelX =
+        lastP.dx.clamp(plot.left, math.max(plot.left, plot.right - 80)).toDouble();
+    gridLabel.paint(canvas, Offset(labelX, lastP.dy - 18));
+  }
+
+  /// Y 轴范围：以数据范围为准，再保证一个最小可见跨度。
+  ///
+  /// 三种指标的量程差了一个数量级（OD 约 0–1.3、温度约 20–40、pH 约 6.5–7.1），
+  /// 用固定量程会让曲线挤成一条直线；用纯数据范围又会让微小噪声被放大成
+  /// 剧烈波动，所以取「数据范围」与「最小跨度」的较大者。
+  /// 返回的范围始终完整包住所有数据点，读数不会被画到绘图区之外。
+  (double, double) _yRange(List<Offset> points) {
+    var minValue = double.infinity;
+    var maxValue = -double.infinity;
+    for (final p in points) {
+      if (p.dy < minValue) minValue = p.dy;
+      if (p.dy > maxValue) maxValue = p.dy;
+    }
+
+    final minSpan = switch (metric) {
+      ChartMetric.turbidityOd => 0.2,
+      ChartMetric.temperature => 4.0,
+      ChartMetric.ph => 0.5,
+    };
+
+    var span = maxValue - minValue;
+    if (span < minSpan) {
+      final pad = (minSpan - span) / 2;
+      minValue -= pad;
+      maxValue += pad;
+      span = minSpan;
+    }
+
+    // 上下各留 12% 呼吸空间，曲线不会贴着上下边框。
+    final margin = span * 0.12;
+    var yMin = minValue - margin;
+    var yMax = maxValue + margin;
+
+    if (metric == ChartMetric.turbidityOd && minValue >= 0) {
+      // OD 是非负量：下边界收到 0。数据最小值本身 ≥ 0，收边不会裁掉任何点。
+      yMin = math.max(0.0, yMin);
+    }
+    return (yMin, yMax);
   }
 
   static List<int> _hourTicks(double maxHours) {
@@ -268,8 +298,12 @@ class _ChartPainter extends CustomPainter {
     return ticks;
   }
 
-  static String _formatValue(double v, ChartMetric metric) =>
-      metric == ChartMetric.ph ? v.toStringAsFixed(1) : v.toStringAsFixed(1);
+  /// 刻度与数值标签：OD 保留 3 位（与列表/CSV 一致），pH 2 位，温度 1 位。
+  static String _formatValue(double v, ChartMetric metric) => switch (metric) {
+        ChartMetric.turbidityOd => v.toStringAsFixed(3),
+        ChartMetric.temperature => v.toStringAsFixed(1),
+        ChartMetric.ph => v.toStringAsFixed(2),
+      };
 
   @override
   bool shouldRepaint(covariant _ChartPainter oldDelegate) =>

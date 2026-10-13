@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 
 import '../models/fermentation_project.dart';
+import '../services/ble_device_manager.dart';
 import '../services/fermenter_controller.dart';
 import '../utils/format.dart';
 import '../widgets/feature_row.dart';
 import '../widgets/status_chip.dart';
+import 'device_page.dart';
 import 'new_project_page.dart';
 import 'onboarding_page.dart';
 import 'project_detail_page.dart';
@@ -25,7 +27,32 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   bool _loadingSample = false;
 
+  /// 设备连接的状态机，AppBar 入口与设备页共用。
+  ///
+  /// BLE 客户端是懒创建的：没有点进设备页、没有开始扫描之前不会碰平台通道，
+  /// 所以既有的 widget 测试照旧能跑。
+  late final BleDeviceManager _device =
+      BleDeviceManager(controller: widget.controller);
+
   FermenterController get data => widget.controller;
+
+  /// 一次合并好，避免每次 build 都重建一个 Listenable。
+  late final Listenable _repaint = Listenable.merge([data, _device]);
+
+  @override
+  void dispose() {
+    _device.dispose();
+    super.dispose();
+  }
+
+  Future<void> _openDevicePage() async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (_) => DevicePage(controller: data, manager: _device),
+      ),
+    );
+    if (mounted) await data.refresh();
+  }
 
   void _message(String text) {
     if (mounted) {
@@ -92,11 +119,19 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
-      animation: data,
+      animation: _repaint,
       builder: (context, _) => Scaffold(
         appBar: AppBar(
           title: const Text('Fermenter'),
           actions: [
+            IconButton(
+                onPressed: _openDevicePage,
+                tooltip: _device.isConnected
+                    ? 'Device connected'
+                    : 'Connect the fermenter',
+                icon: Icon(_device.isConnected
+                    ? Icons.bluetooth_connected
+                    : Icons.bluetooth)),
             IconButton(
                 onPressed: _replayOnboarding,
                 tooltip: 'How it works',

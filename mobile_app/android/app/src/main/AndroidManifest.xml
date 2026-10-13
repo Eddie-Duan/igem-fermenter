@@ -1,5 +1,31 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- 与 ESP32-S3 的 BLE 通信（flutter_reactive_ble）。
+         Android 12 (API 31) 起用 BLUETOOTH_SCAN / BLUETOOTH_CONNECT；
+         搜索不加 neverForLocation 会被要求一并申请定位权限，
+         发酵罐不做定位，所以显式声明。 -->
+    <uses-permission
+        android:name="android.permission.BLUETOOTH_SCAN"
+        android:usesPermissionFlags="neverForLocation" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <!-- Android 11 及以下扫描 BLE 需要定位权限。 -->
+    <uses-permission
+        android:name="android.permission.ACCESS_FINE_LOCATION"
+        android:maxSdkVersion="30" />
+    <!-- Android 11 及以下的旧蓝牙权限。 -->
+    <uses-permission
+        android:name="android.permission.BLUETOOTH"
+        android:maxSdkVersion="30" />
+    <uses-permission
+        android:name="android.permission.BLUETOOTH_ADMIN"
+        android:maxSdkVersion="30" />
+
+    <!-- 声明硬件为可选，避免没有蓝牙的设备装不上。 -->
+    <uses-feature
+        android:name="android.hardware.bluetooth_le"
+        android:required="false" />
+
     <application
         android:label="Fermenter"
         android:allowBackup="false"

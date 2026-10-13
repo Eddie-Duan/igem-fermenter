@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 
+import '../ble/ble_sync_service.dart';
 import '../database/fermenter_repository.dart';
 import '../models/control_state.dart';
 import '../models/fermentation_project.dart';
@@ -12,9 +14,11 @@ import 'simulated_sensor_source.dart';
 
 /// 全局控制器：持有项目与读数、驱动仿真采样、维护收获检测结果。
 ///
-/// 未来接真实硬件时，只需要把 [SimulatedSensorSource] 换成硬件实现，
-/// 其余（存储、检测、UI）全部复用。
-class FermenterController extends ChangeNotifier {
+/// 数据有两个来源，但落库、收获检测、统计和界面完全共用一条路径：
+/// - 没有硬件（或批次未绑定设备）：[SimulatedSensorSource] 按本地时钟推进；
+/// - 已绑定 ESP32-S3：读数由设备推送（[BleSyncService] 校验、
+///   经 [storeDeviceReadings] 落库），本地仿真对该批次停止。
+class FermenterController extends ChangeNotifier implements BleReadingSink {
   FermenterController({
     required this.repository,
     SensorSource Function(int projectId, SensorReading? last)? sourceBuilder,
@@ -29,6 +33,14 @@ class FermenterController extends ChangeNotifier {
   /// 样例批次覆盖的仿真时长（20 小时 = 一个完整周期：增殖 → 峰值 → 裂解）。
   static const int sampleBatchSeconds = 20 * 3600;
 
+  /// 设备时间轴：设备记录按 `seq × 采样周期` 换算成仿真秒。
+  /// 与固件的采样周期（`firmware/esp32-s3` 的 `SAMPLE_INTERVAL_S`）必须一致。
+  static const int deviceSampleIntervalSeconds = 120;
+
+  /// 手动读数使用的序号起点。设备记录占 0…n，手动读数从这里往上走，
+  /// 避免两条不同来源的读数撞号、被 BLE 同步的去重逻辑误判成重复包。
+  static const int manualSeqBase = 1000000;
+
   final FermenterRepository repository;
   final DateTime Function() clock;
   final SensorSource Function(int projectId, SensorReading? last) _sourceBuilder;
@@ -39,6 +51,12 @@ class FermenterController extends ChangeNotifier {
   final Map<int, int> _lastSampleSeconds = {};
   final Map<int, HarvestVerdict> _verdicts = {};
   final Map<int, List<SensorReading>> _readings = {};
+
+  /// 已绑定 BLE 设备的批次 → 设备名。绑定期间该批次不再跑本地仿真。
+  ///
+  /// 只存在内存里：App 重启后需要重新连接设备（设备侧数据在 flash 上，
+  /// 重新同步不会丢）。
+  final Map<int, String> _deviceLabels = {};
 
   List<FermentationProject> projects = const [];
   int? _openProjectId;
@@ -76,6 +94,30 @@ class FermenterController extends ChangeNotifier {
     return id == null ? null : _verdicts[id];
   }
 
+  /// 该批次是否绑定到 ESP32-S3（绑定时不再由本地仿真产生读数）。
+  bool isDeviceBound(int projectId) => _deviceLabels.containsKey(projectId);
+
+  /// 绑定的设备名，未绑定时为 null。
+  String? boundDeviceLabel(int projectId) => _deviceLabels[projectId];
+
+  /// 把批次绑定到设备：停掉本地仿真，之后数据只从设备来。
+  void bindDevice(int projectId, String deviceLabel) {
+    if (_deviceLabels[projectId] == deviceLabel) return;
+    _deviceLabels[projectId] = deviceLabel;
+    // 丢掉仿真源：设备批次的时间轴不由本地时钟推进。
+    _sources.remove(projectId);
+    notifyListeners();
+  }
+
+  /// 解除绑定，回到本地仿真。设备侧未同步的数据仍在 flash 上，不会丢。
+  void unbindDevice(int projectId) {
+    if (_deviceLabels.remove(projectId) == null) return;
+    _sources.remove(projectId);
+    _clockSeconds.remove(projectId);
+    _lastSampleSeconds.remove(projectId);
+    notifyListeners();
+  }
+
   // -- 生命周期 --
 
   void start() {
@@ -95,6 +137,8 @@ class FermenterController extends ChangeNotifier {
 
   Future<void> _advanceProject(FermentationProject project) async {
     final id = project.id;
+    // 设备批次：读数由设备推送，本地仿真不参与，否则会造出设备上并不存在的点。
+    if (_deviceLabels.containsKey(id)) return;
     final readings = _readings[id] ??= <SensorReading>[];
     final nextSim =
         (_clockSeconds[id] ?? project.simSeconds) + project.timeScale;
@@ -391,6 +435,7 @@ class FermenterController extends ChangeNotifier {
     _sources.remove(id);
     _detectors.remove(id);
     _verdicts.remove(id);
+    _deviceLabels.remove(id);
     if (_openProjectId == id) _openProjectId = null;
     await _load(++_revision);
   }
@@ -408,7 +453,7 @@ class FermenterController extends ChangeNotifier {
     final reading = SensorReading(
       id: 0,
       projectId: id,
-      seq: current.length,
+      seq: _manualSeq(id, current),
       simSeconds: project.simSeconds,
       recordedAt: clock(),
       temperatureC: temperatureC,
@@ -443,6 +488,115 @@ class FermenterController extends ChangeNotifier {
     notifyListeners();
   }
 
+  // -- 设备读数（BleReadingSink）--
+
+  /// 设备同步的起点：本地已有的下一条设备序号（空批次为 0）。
+  @override
+  Future<int> nextExpectedSeq(int projectId) async {
+    final cached = _readings[projectId];
+    if (cached != null && cached.isNotEmpty) return _deviceCursor(cached);
+    return _deviceCursor(await repository.readings(projectId));
+  }
+
+  /// 落库设备推送/同步的读数。返回后 [BleSyncService] 才会回 ACK。
+  ///
+  /// 与仿真路径分开：这里不推进本地时钟，时间轴直接取设备序号。
+  @override
+  Future<void> storeDeviceReadings(
+      int projectId, List<SensorReading> readings) async {
+    if (readings.isEmpty) return;
+    final project = _projectById(projectId);
+    if (project == null) return;
+
+    final existing = _readings[projectId] ?? const <SensorReading>[];
+    final known = <int>{
+      for (final reading in existing)
+        if (reading.source == 'ble') reading.seq,
+    };
+    final fresh = <SensorReading>[];
+    for (final reading in readings) {
+      if (known.add(reading.seq)) fresh.add(_withDeviceTimeline(reading));
+    }
+    if (fresh.isEmpty) return;
+    fresh.sort((a, b) => a.seq.compareTo(b.seq));
+
+    await repository.addReadings(fresh);
+    // 与 readings(ascending: true) 的排序保持一致：手动读数的序号在
+    // 另一个区段，仍然排在设备记录之后。
+    final updated = [...existing, ...fresh]
+      ..sort((a, b) => a.seq.compareTo(b.seq));
+    _readings[projectId] = updated;
+
+    final last = updated.last;
+    _clockSeconds[projectId] =
+        math.max(_clockSeconds[projectId] ?? 0, last.simSeconds);
+    _lastSampleSeconds[projectId] = _clockSeconds[projectId];
+
+    final verdict = (_detectors[projectId] ??= const HarvestDetector())
+        .evaluate(updated.map((r) => r.od).toList(growable: false));
+    _verdicts[projectId] = verdict;
+
+    var next = project.copyWith(
+      simSeconds: math.max(project.simSeconds, last.simSeconds),
+      updatedAt: clock(),
+      lastTemperatureC: last.temperatureC,
+      lastPh: last.ph,
+      lastOd: last.od,
+    );
+    if (verdict.peakOd > (next.peakOd ?? 0)) {
+      next = next.copyWith(peakOd: () => verdict.peakOd);
+    }
+    if (verdict.triggered && next.status == FermenterStatus.active) {
+      next = next.copyWith(
+        status: FermenterStatus.harvest,
+        harvestAtSeconds: () => last.simSeconds,
+      );
+    }
+    _replaceProject(next);
+    await repository.updateProject(next);
+    notifyListeners();
+  }
+
+  /// 手动读数的序号：仿真批次沿用「按条数递增」，设备批次换到独立区段。
+  int _manualSeq(int projectId, List<SensorReading> existing) {
+    if (!_deviceLabels.containsKey(projectId)) return existing.length;
+    return manualSeqBase + existing.where((r) => r.source == 'manual').length;
+  }
+
+  /// 设备同步的起点：本地第一条**缺失**的设备序号。
+  ///
+  /// 不能简单返回「最大序号 + 1」：设备某条记录若在传输中丢了，App 会把后面的
+  /// 记录照常落库，用最大序号当游标就等于永久跳过中间那段（下次同步从更大的
+  /// 序号开始）。这里从最小的已存序号往后找第一个空档，重连时会重取缺口。
+  static int _deviceCursor(List<SensorReading> readings) {
+    final seqs = <int>{
+      for (final reading in readings)
+        if (reading.source == 'ble') reading.seq,
+    };
+    if (seqs.isEmpty) return 0;
+    var cursor = seqs.reduce(math.min);
+    while (seqs.contains(cursor)) {
+      cursor++;
+    }
+    return cursor;
+  }
+
+  /// 设备只给绝对时间戳；实验时间轴按「序号 × 采样周期」换算，
+  /// 这样即使设备没校时也能画出正确的时间轴。
+  static SensorReading _withDeviceTimeline(SensorReading reading) =>
+      SensorReading(
+        id: 0,
+        projectId: reading.projectId,
+        seq: reading.seq,
+        simSeconds: reading.seq * deviceSampleIntervalSeconds,
+        recordedAt: reading.recordedAt,
+        temperatureC: reading.temperatureC,
+        ph: reading.ph,
+        od: reading.od,
+        note: reading.note,
+        source: reading.source,
+      );
+
   Future<void> _setStatus(int id, FermenterStatus status) async {
     final project = _projectById(id);
     if (project == null || project.status == status) return;
@@ -451,6 +605,9 @@ class FermenterController extends ChangeNotifier {
     await repository.updateProject(updated);
     notifyListeners();
   }
+
+  /// 按 id 取批次（设备同步、界面下拉选择用）。
+  FermentationProject? projectById(int id) => _projectById(id);
 
   FermentationProject? _projectById(int id) {
     for (final project in projects) {
