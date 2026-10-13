@@ -58,8 +58,8 @@ class PhaseChip extends StatelessWidget {
     final color = switch (phase) {
       FermentationPhase.lagGrowth => scheme.secondary,
       FermentationPhase.exponential => scheme.primary,
-      FermentationPhase.stationary => Colors.orange.shade800,
-      FermentationPhase.lysis => Colors.red.shade700,
+      FermentationPhase.stationary => scheme.secondary,
+      FermentationPhase.lysis => scheme.error,
       FermentationPhase.finished => scheme.onSurfaceVariant,
     };
     return Container(

@@ -461,6 +461,7 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
   // -- 指标 --
 
   Widget _metrics(FermentationProject project) {
+    final scheme = Theme.of(context).colorScheme;
     final readings = data.openReadings;
     final current =
         readings.isEmpty ? null : readings.last;
@@ -476,7 +477,7 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
           value: current == null ? '—' : number(current.temperatureC),
           subtitle: _deltaSubtitle(previous?.temperatureC, current?.temperatureC, 'Target $targetLabel'),
           icon: Icons.thermostat_outlined,
-          color: Colors.deepOrange.shade400,
+          color: scheme.secondary,
         ),
         SensorCard(
           width: width,
@@ -485,7 +486,7 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
           value: current == null ? '—' : number(current.ph),
           subtitle: _deltaSubtitle(previous?.ph, current?.ph, 'buffer drifts slowly'),
           icon: Icons.science_outlined,
-          color: Colors.indigo.shade400,
+          color: scheme.tertiary,
         ),
         SensorCard(
           width: width,
@@ -494,7 +495,7 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
           value: current == null ? '—' : number(current.od, 3),
           subtitle: 'peak ${number(data.openVerdict?.peakOd ?? 0, 3)}',
           icon: Icons.bubble_chart_outlined,
-          color: Colors.teal.shade600,
+          color: scheme.primary,
         ),
       ]);
     });

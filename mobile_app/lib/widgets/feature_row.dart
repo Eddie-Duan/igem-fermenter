@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../theme/app_theme.dart';
-
-/// 功能条目：图标 + 深绿加粗关键词 + 一行说明。
+/// 功能条目：主题色图标 + 加粗关键词 + 一行说明。
 ///
 /// 欢迎页与引导页共用同一套排版，保证两处的视觉语言一致。
 class FeatureRow extends StatelessWidget {
@@ -44,10 +42,10 @@ class FeatureRow extends StatelessWidget {
               children: [
                 Text(
                   title,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
-                    color: accentGreen,
+                    color: scheme.primary,
                   ),
                 ),
                 const SizedBox(height: 3),

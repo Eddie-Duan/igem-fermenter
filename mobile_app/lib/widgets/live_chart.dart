@@ -47,7 +47,7 @@ class LiveChart extends StatelessWidget {
         ),
       );
     }
-    final color = emphasizedColor ?? _defaultColor(metric);
+    final color = emphasizedColor ?? _defaultColor(metric, scheme);
     // 必须先复制一份：Controller 是原地 append 到同一个 List 上的，
     // 直接把 readings 交给 painter 会让新旧 painter 指向同一对象，
     // shouldRepaint 的引用比较永远相等 —— 曲线便不再随采样刷新。
@@ -62,6 +62,8 @@ class LiveChart extends StatelessWidget {
           color: color,
           peakAtHours: peakAtHours,
           harvestAtHours: harvestAtHours,
+          peakColor: scheme.secondary,
+          harvestColor: scheme.error,
           labelStyle:
               TextStyle(fontSize: 10, color: scheme.onSurfaceVariant),
         ),
@@ -69,11 +71,11 @@ class LiveChart extends StatelessWidget {
     );
   }
 
-  static Color _defaultColor(ChartMetric metric) =>
+  static Color _defaultColor(ChartMetric metric, ColorScheme scheme) =>
       switch (metric) {
-        ChartMetric.turbidityOd => Colors.teal.shade600,
-        ChartMetric.temperature => Colors.deepOrange.shade400,
-        ChartMetric.ph => Colors.indigo.shade400,
+        ChartMetric.turbidityOd => scheme.primary,
+        ChartMetric.temperature => scheme.secondary,
+        ChartMetric.ph => scheme.tertiary,
       };
 }
 
@@ -84,6 +86,8 @@ class _ChartPainter extends CustomPainter {
     required this.color,
     required this.peakAtHours,
     required this.harvestAtHours,
+    required this.peakColor,
+    required this.harvestColor,
     required this.labelStyle,
   });
 
@@ -92,6 +96,8 @@ class _ChartPainter extends CustomPainter {
   final Color color;
   final double? peakAtHours;
   final double? harvestAtHours;
+  final Color peakColor;
+  final Color harvestColor;
   final TextStyle labelStyle;
 
   @override
@@ -163,13 +169,13 @@ class _ChartPainter extends CustomPainter {
         Offset(x, plot.top),
         Offset(x, plot.bottom),
         Paint()
-          ..color = Colors.orange.shade700.withValues(alpha: 0.5)
+          ..color = peakColor.withValues(alpha: 0.65)
           ..strokeWidth = 1.2
           ..style = PaintingStyle.stroke,
       );
       gridLabel
         ..text = TextSpan(
-            text: 'peak', style: TextStyle(fontSize: 9, color: Colors.orange.shade800))
+            text: 'peak', style: TextStyle(fontSize: 9, color: peakColor))
         ..layout(maxWidth: 40);
       gridLabel.paint(canvas, Offset(x + 3, plot.top + 2));
     }
@@ -180,14 +186,14 @@ class _ChartPainter extends CustomPainter {
         Offset(x, plot.top),
         Offset(x, plot.bottom),
         Paint()
-          ..color = Colors.red.shade600.withValues(alpha: 0.5)
+          ..color = harvestColor.withValues(alpha: 0.65)
           ..strokeWidth = 1.2
           ..style = PaintingStyle.stroke,
       );
       gridLabel
         ..text = TextSpan(
             text: 'harvest',
-            style: TextStyle(fontSize: 9, color: Colors.red.shade700))
+            style: TextStyle(fontSize: 9, color: harvestColor))
         ..layout(maxWidth: 50);
       gridLabel.paint(canvas, Offset(x + 3, plot.top + 2));
     }

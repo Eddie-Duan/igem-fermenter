@@ -132,13 +132,13 @@ class _OnboardingPageState extends State<OnboardingPage> {
           textAlign: TextAlign.center,
           style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold)),
       const SizedBox(height: 10),
-      const Text('From inoculation to harvest, without the guesswork.',
+      Text('From inoculation to harvest, without the guesswork.',
           textAlign: TextAlign.center,
           style: TextStyle(
               fontSize: 15.5,
               height: 1.3,
               fontWeight: FontWeight.w600,
-              color: accentGreen)),
+              color: scheme.primary)),
       const SizedBox(height: 14),
       Text(
         'Temperature, pH and turbidity in one place — with a clear signal '
@@ -181,26 +181,26 @@ class _OnboardingPageState extends State<OnboardingPage> {
             fontSize: 13.5, height: 1.4, color: scheme.onSurfaceVariant),
       ),
       const SizedBox(height: 18),
-      const FeatureRow(
+      FeatureRow(
         icon: Icons.bubble_chart_outlined,
         title: 'Turbidity (OD600)',
         body: 'The cloudiness of the culture — it climbs while the cells '
             'grow and falls once they lyse.',
-        color: Colors.teal,
+        color: scheme.primary,
       ),
-      const FeatureRow(
+      FeatureRow(
         icon: Icons.thermostat_outlined,
         title: 'Temperature',
         body: 'Ramped to your target and held there, with the heater and '
             'stirrer under your control.',
-        color: Colors.deepOrange,
+        color: scheme.secondary,
       ),
-      const FeatureRow(
+      FeatureRow(
         icon: Icons.science_outlined,
         title: 'pH',
         body: 'The buffer drifts down during growth and recovers slightly '
             'during lysis.',
-        color: Colors.indigo,
+        color: scheme.tertiary,
       ),
     ]);
   }
@@ -226,9 +226,9 @@ class _OnboardingPageState extends State<OnboardingPage> {
         runSpacing: 8,
         alignment: WrapAlignment.center,
         children: [
-          _phasePill('Growth', Colors.teal.shade600),
-          _phasePill('Plateau', Colors.orange.shade800),
-          _phasePill('Lysis → harvest', Colors.red.shade700),
+          _phasePill('Growth', scheme.primary),
+          _phasePill('Plateau', scheme.secondary),
+          _phasePill('Lysis → harvest', scheme.error),
         ],
       ),
     ]);
@@ -390,8 +390,8 @@ class _HarvestCurvePreviewState extends State<_HarvestCurvePreview>
         builder: (context, _) => CustomPaint(
           painter: _HarvestCurvePainter(
             progress: _controller.value,
-            line: Colors.teal.shade600,
-            fill: Colors.teal.shade600.withValues(alpha: 0.16),
+            line: scheme.primary,
+            fill: scheme.primary.withValues(alpha: 0.16),
             guide: scheme.outlineVariant,
             alert: scheme.tertiary,
             onAlert: scheme.onTertiary,

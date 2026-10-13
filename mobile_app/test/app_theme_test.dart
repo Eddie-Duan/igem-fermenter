@@ -3,11 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('app theme is Material 3 light and derives from the brand seed', () {
+  test('app theme uses the lavender and orange brand palette', () {
     final theme = buildAppTheme();
     expect(theme.useMaterial3, isTrue);
     expect(theme.colorScheme.brightness, Brightness.light);
-    // 品牌色应为 Teal-ish（seed 0xff147d79），且 AppBar 使用 surface 背景。
+    expect(theme.colorScheme.primary, const Color(0xff765185));
+    expect(theme.colorScheme.secondary, const Color(0xffe9a23b));
     expect(theme.appBarTheme.backgroundColor, theme.colorScheme.surface);
     expect(theme.scaffoldBackgroundColor, theme.colorScheme.surface);
   });

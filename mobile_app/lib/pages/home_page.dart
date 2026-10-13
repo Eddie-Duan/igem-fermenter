@@ -233,26 +233,26 @@ class _HomePageState extends State<HomePage> {
           const SizedBox(height: 26),
           _sectionTitle('What it records'),
           const SizedBox(height: 4),
-          const FeatureRow(
+          FeatureRow(
             icon: Icons.bubble_chart_outlined,
             title: 'Turbidity (OD600)',
             body: 'How cloudy the culture is. Growth pushes it up, lysis pulls '
                 'it down — that drop is the harvest signal.',
-            color: Colors.teal,
+            color: Theme.of(context).colorScheme.primary,
           ),
-          const FeatureRow(
+          FeatureRow(
             icon: Icons.thermostat_outlined,
             title: 'Temperature',
             body: 'Ramps from room temperature to your target and holds it, '
                 'with the heater and stirrer under your control.',
-            color: Colors.deepOrange,
+            color: Theme.of(context).colorScheme.secondary,
           ),
-          const FeatureRow(
+          FeatureRow(
             icon: Icons.science_outlined,
             title: 'pH',
             body: 'Tracks the buffer drift: a slow dip while the cells grow, '
                 'a small recovery once they start to lyse.',
-            color: Colors.indigo,
+            color: Theme.of(context).colorScheme.tertiary,
           ),
           const SizedBox(height: 26),
           _sectionTitle('How it works'),
