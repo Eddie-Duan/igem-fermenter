@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 
 import '../services/onboarding_store.dart';
 import '../services/simulated_sensor_source.dart';
-import '../theme/app_theme.dart';
 import '../widgets/feature_row.dart';
 
 /// 新用户引导：首次启动时自动展示，之后可从首页右上角重播。
