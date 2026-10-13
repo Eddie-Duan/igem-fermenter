@@ -83,7 +83,7 @@ void main() {
     // 第三页的曲线是循环动画，所以全程只用显式 pump，不用 pumpAndSettle。
     await tester.pump();
 
-    expect(find.text('From inoculation to harvest, without the guesswork.'),
+    expect(find.text('From inoculation to harvest — made simple.'),
         findsOneWidget);
     expect(find.text('Skip'), findsOneWidget);
     expect(find.text('Get started'), findsNothing);

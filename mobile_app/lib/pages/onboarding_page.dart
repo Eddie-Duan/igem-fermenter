@@ -131,20 +131,19 @@ class _OnboardingPageState extends State<OnboardingPage> {
           textAlign: TextAlign.center,
           style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold)),
       const SizedBox(height: 10),
-      Text('From inoculation to harvest, without the guesswork.',
+      Text('From inoculation to harvest — made simple.',
           textAlign: TextAlign.center,
           style: TextStyle(
-              fontSize: 15.5,
+              fontSize: 14.5,
               height: 1.3,
               fontWeight: FontWeight.w600,
               color: scheme.primary)),
       const SizedBox(height: 14),
       Text(
-        'Temperature, pH and turbidity in one place — with a clear signal '
-        'the moment the culture is ready to harvest.',
+        'Track key signals. Know when to harvest.',
         textAlign: TextAlign.center,
         style: TextStyle(
-            fontSize: 14, height: 1.4, color: scheme.onSurfaceVariant),
+            fontSize: 13.5, height: 1.35, color: scheme.onSurfaceVariant),
       ),
       const SizedBox(height: 18),
       Center(
@@ -155,7 +154,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
             borderRadius: BorderRadius.circular(20),
           ),
           child: Text(
-            'No hardware needed — start with the built-in sample data.',
+            'No hardware needed. Try sample data.',
             textAlign: TextAlign.center,
             style: TextStyle(
                 fontSize: 12,
@@ -170,35 +169,31 @@ class _OnboardingPageState extends State<OnboardingPage> {
   Widget _signalsSlide() {
     final scheme = Theme.of(context).colorScheme;
     return _pageShell([
-      _slideTitle('Three signals, one screen'),
+      _slideTitle('Three signals, one screen', scheme.tertiary),
       const SizedBox(height: 8),
       Text(
-        'Every reading is stored and plotted on a live time course, so the '
-        'trend is visible at a glance.',
+        'Live curves make every trend clear.',
         textAlign: TextAlign.center,
         style: TextStyle(
-            fontSize: 13.5, height: 1.4, color: scheme.onSurfaceVariant),
+            fontSize: 13.5, height: 1.35, color: scheme.onSurfaceVariant),
       ),
       const SizedBox(height: 18),
       FeatureRow(
         icon: Icons.bubble_chart_outlined,
         title: 'Turbidity (OD600)',
-        body: 'The cloudiness of the culture — it climbs while the cells '
-            'grow and falls once they lyse.',
+        body: 'Tracks culture growth and lysis.',
         color: scheme.primary,
       ),
       FeatureRow(
         icon: Icons.thermostat_outlined,
         title: 'Temperature',
-        body: 'Ramped to your target and held there, with the heater and '
-            'stirrer under your control.',
+        body: 'Holds your target temperature.',
         color: scheme.secondary,
       ),
       FeatureRow(
         icon: Icons.science_outlined,
         title: 'pH',
-        body: 'The buffer drifts down during growth and recovers slightly '
-            'during lysis.',
+        body: 'Tracks buffer changes.',
         color: scheme.tertiary,
       ),
     ]);
@@ -209,15 +204,13 @@ class _OnboardingPageState extends State<OnboardingPage> {
     return _pageShell([
       const _HarvestCurvePreview(),
       const SizedBox(height: 22),
-      _slideTitle('Harvest on signal'),
+      _slideTitle('Harvest on signal', scheme.tertiary),
       const SizedBox(height: 8),
       Text(
-        'Turbidity rises during growth, plateaus, then falls sharply as the '
-        'cells lyse. The app watches for that sustained fall and alerts you — '
-        'that is the harvest window.',
+        'Get alerted when turbidity signals harvest.',
         textAlign: TextAlign.center,
         style: TextStyle(
-            fontSize: 13.5, height: 1.4, color: scheme.onSurfaceVariant),
+            fontSize: 13.5, height: 1.35, color: scheme.onSurfaceVariant),
       ),
       const SizedBox(height: 16),
       Wrap(
@@ -255,9 +248,10 @@ class _OnboardingPageState extends State<OnboardingPage> {
         },
       );
 
-  Widget _slideTitle(String text) => Text(text,
+  Widget _slideTitle(String text, Color color) => Text(text,
       textAlign: TextAlign.center,
-      style: const TextStyle(fontSize: 21, fontWeight: FontWeight.bold));
+      style: TextStyle(
+          fontSize: 21, fontWeight: FontWeight.bold, color: color));
 
   Widget _logoBadge(ColorScheme scheme) => Container(
         padding: const EdgeInsets.all(22),

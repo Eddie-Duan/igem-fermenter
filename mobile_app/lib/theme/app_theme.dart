@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 
 /// 品牌主色为淡紫，黄橙色用于次要强调。
 const _brandPurple = Color(0xff765185);
-const _accentOrange = Color(0xffe9a23b);
+const _accentOrange = Color(0xfff4a900);
+const _accentViolet = Color(0xff9333ea);
 
 /// App 主题。只在 `main.dart` 里装配，页面不要再写死颜色。
 ///
@@ -12,6 +13,7 @@ ThemeData buildAppTheme() {
     seedColor: _brandPurple,
     primary: _brandPurple,
     secondary: _accentOrange,
+    tertiary: _accentViolet,
     brightness: Brightness.light,
   );
   return ThemeData(
