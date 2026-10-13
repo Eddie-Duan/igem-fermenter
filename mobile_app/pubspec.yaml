@@ -34,6 +34,4 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   assets:
-    - assets/images/onboarding/mascot_welcome_v3.png
-    - assets/images/onboarding/mascot_signals_v3.png
-    - assets/images/onboarding/mascot_harvest_v3.png
+    - assets/images/onboarding/mascot_parcel.png

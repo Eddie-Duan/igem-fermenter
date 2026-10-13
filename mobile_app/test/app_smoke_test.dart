@@ -80,55 +80,48 @@ void main() {
       theme: buildAppTheme(),
       home: OnboardingPage(onDone: () => done = true),
     ));
-    // 引导页包含按需播放的动画，全程使用显式 pump。
+    // 收获曲线会循环播放，全程使用显式 pump。
     await tester.pump();
 
-    expect(find.text('From inoculation to harvest — made simple.'),
+    expect(find.text('From inoculation to harvest, without the guesswork.'),
         findsOneWidget);
-    expect(find.text('Tap the illustration'), findsOneWidget);
-    expect(find.byType(Image), findsOneWidget);
+    expect(find.text('Hi, I’m PARCEL. Let’s follow your culture together.'),
+        findsOneWidget);
+    expect(find.byType(Image), findsWidgets);
     expect(find.text('Skip'), findsOneWidget);
     expect(find.text('Get started'), findsNothing);
-
-    await tester.tap(find.text('Tap the illustration'));
-    await tester.pump(const Duration(milliseconds: 300));
-    expect(find.text('Welcome to the lab!'), findsOneWidget);
-
-    await tester.ensureVisible(find.text('Preview a sample reading'));
-    await tester.tap(find.text('Preview a sample reading'));
-    await tester.pump(const Duration(milliseconds: 300));
-    expect(find.text('Sample culture is growing'), findsOneWidget);
+    expect(find.text('Preview a sample reading'), findsNothing);
+    expect(find.byType(ChoiceChip), findsNothing);
 
     await tester.ensureVisible(find.text('Continue'));
     await tester.tap(find.text('Continue'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
     expect(find.text('Three signals, one screen'), findsOneWidget);
-    expect(find.text('Tap the illustration'), findsOneWidget);
-
-    await tester.ensureVisible(find.widgetWithText(ChoiceChip, 'Temperature'));
-    await tester.tap(find.widgetWithText(ChoiceChip, 'Temperature'));
-    await tester.pump(const Duration(milliseconds: 300));
-    expect(find.text('The culture is at its target.'), findsOneWidget);
-    expect(find.text('37.0 °C'), findsOneWidget);
+    expect(
+        find.text('I watch OD600, temperature and pH as your culture grows.'),
+        findsOneWidget);
+    expect(find.text('Turbidity (OD600)'), findsOneWidget);
+    expect(find.text('Temperature'), findsOneWidget);
+    expect(find.text('pH'), findsOneWidget);
 
     await tester.ensureVisible(find.text('Continue'));
     await tester.tap(find.text('Continue'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
     expect(find.text('Harvest on signal'), findsOneWidget);
+    expect(find.text('When OD600 drops after growth, I’ll flag the harvest window.'),
+        findsOneWidget);
     expect(find.text('Get started'), findsOneWidget);
-
-    await tester.ensureVisible(find.text('Preview harvest signal'));
-    await tester.tap(find.text('Preview harvest signal'));
     await tester.pump(const Duration(milliseconds: 3000));
+    expect(find.text('Preview harvest signal'), findsNothing);
 
     await tester.ensureVisible(find.text('Get started'));
     await tester.tap(find.text('Get started'));
     await tester.pump();
     expect(done, isTrue);
 
-    // 卸载页面，清理按需播放的动画。
+    // 卸载页面，清理循环曲线动画。
     await tester.pumpWidget(const SizedBox());
   });
 
@@ -170,22 +163,23 @@ void main() {
     ));
     await tester.pump();
 
-    await tester.ensureVisible(find.text('Preview a sample reading'));
-    await tester.tap(find.text('Preview a sample reading'));
-    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('Hi, I’m PARCEL. Let’s follow your culture together.'),
+        findsOneWidget);
     expect(tester.takeException(), isNull);
 
+    await tester.ensureVisible(find.text('Continue'));
     await tester.tap(find.text('Continue'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
     expect(find.text('Three signals, one screen'), findsOneWidget);
     expect(tester.takeException(), isNull);
 
+    await tester.ensureVisible(find.text('Continue'));
     await tester.tap(find.text('Continue'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
-    await tester.ensureVisible(find.text('Preview harvest signal'));
-    await tester.tap(find.text('Preview harvest signal'));
+    expect(find.text('Harvest on signal'), findsOneWidget);
+    await tester.ensureVisible(find.text('Lysis → harvest'));
     await tester.pump(const Duration(milliseconds: 3000));
     expect(find.text('Harvest on signal'), findsOneWidget);
     expect(tester.takeException(), isNull);

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import '../services/onboarding_store.dart';
 import '../services/simulated_sensor_source.dart';
+import '../widgets/feature_row.dart';
 
 /// 新用户引导：首次启动时自动展示，之后可从首页右上角重播。
 ///
@@ -12,7 +13,7 @@ import '../services/simulated_sensor_source.dart';
 /// 圆点和按钮都不会跳位：
 ///   1. 这是什么 / 为什么需要它；
 ///   2. 它记录哪三个信号；
-///   3. 收获信号是怎么被识别出来的（曲线动画演示）。
+///   3. 收获信号是怎么被识别出来的。
 class OnboardingPage extends StatefulWidget {
   const OnboardingPage({
     super.key,
@@ -36,9 +37,6 @@ class _OnboardingPageState extends State<OnboardingPage> {
 
   final PageController _pageController = PageController();
   int _index = 0;
-  int _selectedSignal = 0;
-  bool _mascotTapped = false;
-  bool _samplePreviewVisible = false;
 
   bool get _isLast => _index == _pageCount - 1;
 
@@ -89,10 +87,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
                 Expanded(
                   child: PageView(
                     controller: _pageController,
-                    onPageChanged: (index) => setState(() {
-                      _index = index;
-                      _mascotTapped = false;
-                    }),
+                    onPageChanged: (index) => setState(() => _index = index),
                     children: [
                       _slide(0, _welcomeSlide()),
                       _slide(1, _signalsSlide()),
@@ -130,16 +125,14 @@ class _OnboardingPageState extends State<OnboardingPage> {
   Widget _welcomeSlide() {
     final scheme = Theme.of(context).colorScheme;
     return _pageShell([
-      _mascotArtwork(
-        'assets/images/onboarding/mascot_welcome_v3.png',
-        height: 162,
-      ),
+      _mascotDialogue(
+          'Hi, I’m PARCEL. Let’s follow your culture together.'),
       const SizedBox(height: 16),
       const Text('iGEM Fermenter',
           textAlign: TextAlign.center,
           style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold)),
       const SizedBox(height: 10),
-      Text('From inoculation to harvest — made simple.',
+      Text('From inoculation to harvest, without the guesswork.',
           textAlign: TextAlign.center,
           style: TextStyle(
               fontSize: 14.5,
@@ -148,10 +141,11 @@ class _OnboardingPageState extends State<OnboardingPage> {
               color: scheme.primary)),
       const SizedBox(height: 14),
       Text(
-        'Track key signals. Know when to harvest.',
+        'Temperature, pH and turbidity in one place — with a clear signal '
+        'the moment the culture is ready to harvest.',
         textAlign: TextAlign.center,
         style: TextStyle(
-            fontSize: 13.5, height: 1.35, color: scheme.onSurfaceVariant),
+            fontSize: 14, height: 1.4, color: scheme.onSurfaceVariant),
       ),
       const SizedBox(height: 18),
       Center(
@@ -162,7 +156,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
             borderRadius: BorderRadius.circular(20),
           ),
           child: Text(
-            'No hardware needed. Try sample data.',
+            'No hardware needed — start with the built-in sample data.',
             textAlign: TextAlign.center,
             style: TextStyle(
                 fontSize: 12,
@@ -171,121 +165,45 @@ class _OnboardingPageState extends State<OnboardingPage> {
           ),
         ),
       ),
-      const SizedBox(height: 14),
-      FilledButton.tonalIcon(
-        onPressed: () =>
-            setState(() => _samplePreviewVisible = !_samplePreviewVisible),
-        icon: Icon(_samplePreviewVisible ? Icons.visibility_off : Icons.play_arrow),
-        label: Text(
-            _samplePreviewVisible ? 'Hide sample reading' : 'Preview a sample reading'),
-      ),
-      AnimatedSize(
-        duration: const Duration(milliseconds: 240),
-        curve: Curves.easeOutCubic,
-        child: _samplePreviewVisible
-            ? Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Card(
-                  color: scheme.primaryContainer,
-                  child: const ListTile(
-                    leading: Icon(Icons.bubble_chart_outlined),
-                    title: Text('Sample culture is growing'),
-                    subtitle: Text('OD600  1.24     Temperature  37.0 °C'),
-                  ),
-                ),
-              )
-            : const SizedBox(width: double.infinity),
-      ),
     ]);
   }
 
   Widget _signalsSlide() {
     final scheme = Theme.of(context).colorScheme;
-    final signals = [
-      (
-        label: 'OD600',
-        icon: Icons.bubble_chart_outlined,
-        value: '1.24',
-        detail: 'Culture growth is rising.',
-        color: scheme.primary,
-      ),
-      (
-        label: 'Temperature',
-        icon: Icons.thermostat_outlined,
-        value: '37.0 °C',
-        detail: 'The culture is at its target.',
-        color: scheme.secondary,
-      ),
-      (
-        label: 'pH',
-        icon: Icons.science_outlined,
-        value: '6.8',
-        detail: 'The buffer is being monitored.',
-        color: scheme.tertiary,
-      ),
-    ];
-    final selected = signals[_selectedSignal];
     return _pageShell([
-      _mascotArtwork(
-        'assets/images/onboarding/mascot_signals_v3.png',
-        height: 160,
-      ),
-      const SizedBox(height: 4),
+      _mascotDialogue(
+          'I watch OD600, temperature and pH as your culture grows.'),
+      const SizedBox(height: 16),
       _slideTitle('Three signals, one screen', scheme.tertiary),
       const SizedBox(height: 8),
       Text(
-        'Live curves make every trend clear.',
+        'Every reading is stored and plotted on a live time course, so the '
+        'trend is visible at a glance.',
         textAlign: TextAlign.center,
         style: TextStyle(
-            fontSize: 13.5, height: 1.35, color: scheme.onSurfaceVariant),
+            fontSize: 13.5, height: 1.4, color: scheme.onSurfaceVariant),
       ),
-      const SizedBox(height: 14),
-      Wrap(
-        alignment: WrapAlignment.center,
-        spacing: 8,
-        children: [
-          for (var i = 0; i < signals.length; i++)
-            ChoiceChip(
-              label: Text(signals[i].label),
-              selected: i == _selectedSignal,
-              onSelected: (_) => setState(() => _selectedSignal = i),
-            ),
-        ],
+      const SizedBox(height: 18),
+      FeatureRow(
+        icon: Icons.bubble_chart_outlined,
+        title: 'Turbidity (OD600)',
+        body: 'The cloudiness of the culture — it climbs while the cells grow '
+            'and falls once they lyse.',
+        color: scheme.primary,
       ),
-      const SizedBox(height: 8),
-      AnimatedSwitcher(
-        duration: const Duration(milliseconds: 220),
-        child: Container(
-          key: ValueKey(selected.label),
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: selected.color.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: Row(
-            children: [
-              Icon(selected.icon, size: 32, color: selected.color),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(selected.label,
-                        style: TextStyle(
-                            color: selected.color,
-                            fontWeight: FontWeight.bold)),
-                    Text(selected.detail),
-                  ],
-                ),
-              ),
-              Text(selected.value,
-                  style: TextStyle(
-                      color: selected.color,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold)),
-            ],
-          ),
-        ),
+      FeatureRow(
+        icon: Icons.thermostat_outlined,
+        title: 'Temperature',
+        body: 'Ramped to your target and held there, with the heater and '
+            'stirrer under your control.',
+        color: scheme.secondary,
+      ),
+      FeatureRow(
+        icon: Icons.science_outlined,
+        title: 'pH',
+        body: 'The buffer drifts down during growth and recovers slightly '
+            'during lysis.',
+        color: scheme.tertiary,
       ),
     ]);
   }
@@ -293,20 +211,20 @@ class _OnboardingPageState extends State<OnboardingPage> {
   Widget _harvestSlide() {
     final scheme = Theme.of(context).colorScheme;
     return _pageShell([
-      _mascotArtwork(
-        'assets/images/onboarding/mascot_harvest_v3.png',
-        height: 160,
-      ),
-      const SizedBox(height: 4),
+      _mascotDialogue(
+          'When OD600 drops after growth, I’ll flag the harvest window.'),
+      const SizedBox(height: 12),
       const _HarvestCurvePreview(),
       const SizedBox(height: 8),
       _slideTitle('Harvest on signal', scheme.tertiary),
       const SizedBox(height: 8),
       Text(
-        'Know exactly when to harvest.',
+        'Turbidity rises during growth, plateaus, then falls sharply as the '
+        'cells lyse. The app watches for that sustained fall and alerts you — '
+        'that is the harvest window.',
         textAlign: TextAlign.center,
         style: TextStyle(
-            fontSize: 13.5, height: 1.35, color: scheme.onSurfaceVariant),
+            fontSize: 13.5, height: 1.4, color: scheme.onSurfaceVariant),
       ),
       const SizedBox(height: 16),
       Wrap(
@@ -349,47 +267,58 @@ class _OnboardingPageState extends State<OnboardingPage> {
       style: TextStyle(
           fontSize: 21, fontWeight: FontWeight.bold, color: color));
 
-  Widget _mascotArtwork(String asset, {required double height}) {
+  Widget _mascotDialogue(String dialogue) {
     final scheme = Theme.of(context).colorScheme;
-    final onTap = () => setState(() => _mascotTapped = !_mascotTapped);
     return Semantics(
-      button: true,
-      label:
-          _mascotTapped ? 'The mascot says hello' : 'Tap the mascot illustration',
-      onTap: onTap,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        excludeFromSemantics: true,
-        onTap: onTap,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            AnimatedScale(
-              scale: _mascotTapped ? 1.04 : 1,
-              duration: const Duration(milliseconds: 220),
-              curve: Curves.easeOutBack,
-              child: Image.asset(
-                asset,
-                width: double.infinity,
-                height: height,
-                fit: BoxFit.cover,
-              ),
+      label: 'PARCEL says: $dialogue',
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          SizedBox(
+            width: 136,
+            height: 116,
+            child: Image.asset(
+              'assets/images/onboarding/mascot_parcel.png',
+              fit: BoxFit.contain,
             ),
-            const SizedBox(height: 2),
-            AnimatedSwitcher(
-              duration: const Duration(milliseconds: 160),
-              child: Text(
-                _mascotTapped ? 'Welcome to the lab!' : 'Tap the illustration',
-                key: ValueKey<bool>(_mascotTapped),
-                style: TextStyle(
-                  fontSize: 11,
-                  color: scheme.primary,
-                  fontWeight: FontWeight.w600,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: scheme.primaryContainer,
+                    border: Border.all(color: scheme.outlineVariant),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Text(
+                    dialogue,
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      height: 1.3,
+                      color: scheme.onPrimaryContainer,
+                    ),
+                  ),
                 ),
-              ),
+                Transform.translate(
+                  offset: const Offset(14, -1),
+                  child: CustomPaint(
+                    size: const Size(16, 10),
+                    painter: _SpeechBubbleTailPainter(
+                      fill: scheme.primaryContainer,
+                      border: scheme.outlineVariant,
+                    ),
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -443,6 +372,34 @@ class _OnboardingPageState extends State<OnboardingPage> {
   }
 }
 
+class _SpeechBubbleTailPainter extends CustomPainter {
+  const _SpeechBubbleTailPainter({required this.fill, required this.border});
+
+  final Color fill;
+  final Color border;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final tail = Path()
+      ..moveTo(0, 0)
+      ..lineTo(size.width, 0)
+      ..lineTo(4, size.height)
+      ..close();
+    canvas.drawPath(tail, Paint()..color = fill);
+    canvas.drawPath(
+      tail,
+      Paint()
+        ..color = border
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _SpeechBubbleTailPainter old) =>
+      old.fill != fill || old.border != border;
+}
+
 /// 翻页时的淡入 + 轻微上移，让滑动更有层次（跟手滑动本身仍由 PageView 负责）。
 class _SlideIn extends StatelessWidget {
   const _SlideIn({
@@ -476,8 +433,7 @@ class _SlideIn extends StatelessWidget {
       );
 }
 
-/// 第三页的动画演示：用真实的仿真曲线画出一条 OD600 曲线，
-/// 画完后在收获时刻亮起脉冲标记，对应 App 里的「Harvest time」告警。
+/// 第三页用真实的仿真曲线自动演示 OD600 变化与收获提示。
 class _HarvestCurvePreview extends StatefulWidget {
   const _HarvestCurvePreview();
 
@@ -489,8 +445,8 @@ class _HarvestCurvePreviewState extends State<_HarvestCurvePreview>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 2800),
-  );
+    duration: const Duration(milliseconds: 4000),
+  )..repeat();
 
   @override
   void dispose() {
@@ -501,36 +457,26 @@ class _HarvestCurvePreviewState extends State<_HarvestCurvePreview>
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        SizedBox(
-          height: 168,
-          width: double.infinity,
-          child: Semantics(
-            label:
-                'OD600 growth curve. The harvest window is highlighted after growth peaks.',
-            child: AnimatedBuilder(
-              animation: _controller,
-              builder: (context, _) => CustomPaint(
-                painter: _HarvestCurvePainter(
-                  progress: _controller.value,
-                  line: scheme.primary,
-                  fill: scheme.primary.withValues(alpha: 0.16),
-                  guide: scheme.outlineVariant,
-                  alert: scheme.tertiary,
-                  onAlert: scheme.onTertiary,
-                ),
-              ),
+    return SizedBox(
+      height: 168,
+      width: double.infinity,
+      child: Semantics(
+        label:
+            'OD600 growth curve. The harvest window is highlighted after growth peaks.',
+        child: AnimatedBuilder(
+          animation: _controller,
+          builder: (context, _) => CustomPaint(
+            painter: _HarvestCurvePainter(
+              progress: _controller.value,
+              line: scheme.primary,
+              fill: scheme.primary.withValues(alpha: 0.16),
+              guide: scheme.outlineVariant,
+              alert: scheme.tertiary,
+              onAlert: scheme.onTertiary,
             ),
           ),
         ),
-        TextButton.icon(
-          onPressed: () => _controller.forward(from: 0),
-          icon: const Icon(Icons.play_arrow_rounded),
-          label: const Text('Preview harvest signal'),
-        ),
-      ],
+      ),
     );
   }
 }
