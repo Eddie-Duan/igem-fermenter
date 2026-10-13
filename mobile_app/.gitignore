@@ -48,4 +48,4 @@ app.*.map.json
 .widget_preview/
 
 #wiki
-.wiki
+/wiki/

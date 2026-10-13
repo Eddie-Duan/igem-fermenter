@@ -528,9 +528,10 @@ class FermenterController extends ChangeNotifier implements BleReadingSink {
     _readings[projectId] = updated;
 
     final last = updated.last;
-    _clockSeconds[projectId] =
+    final latestSeconds =
         math.max(_clockSeconds[projectId] ?? 0, last.simSeconds);
-    _lastSampleSeconds[projectId] = _clockSeconds[projectId];
+    _clockSeconds[projectId] = latestSeconds;
+    _lastSampleSeconds[projectId] = latestSeconds;
 
     final verdict = (_detectors[projectId] ??= const HarvestDetector())
         .evaluate(updated.map((r) => r.od).toList(growable: false));

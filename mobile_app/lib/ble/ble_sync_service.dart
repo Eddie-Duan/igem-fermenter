@@ -175,7 +175,8 @@ class BleSyncService {
 
   void _onDataFrame(Uint8List frame) => _enqueue(() => _handleRecord(frame));
 
-  void _onStatusFrame(Uint8List frame) => _enqueue(_handleStatus(frame));
+  void _onStatusFrame(Uint8List frame) =>
+      _enqueue(() => _handleStatus(frame));
 
   /// 串行队列：一条出错不影响后面的帧。
   void _enqueue(Future<void> Function() task) {

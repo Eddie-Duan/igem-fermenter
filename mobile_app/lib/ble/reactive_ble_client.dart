@@ -125,7 +125,7 @@ class ReactiveBleClient implements FermenterBleClient {
             } else {
               _connection.add(BleConnectionStatus.disconnected);
               if (!connected.isCompleted) {
-                connected.completeError(const StateError('设备已断开连接'));
+                connected.completeError(StateError('设备已断开连接'));
               }
             }
         }
