@@ -132,11 +132,34 @@ public static class FermenterIconGenerator
 $appRoot = Split-Path -Parent $PSScriptRoot
 $iconSet = Join-Path $appRoot 'ios\Runner\Assets.xcassets\AppIcon.appiconset'
 $masterPath = Join-Path $iconSet 'Icon-App-1024x1024@1x.png'
-$source = [System.Drawing.Bitmap]::FromFile($masterPath)
-$master = [FermenterIconGenerator]::Recolor($source)
+$sourcePath = Join-Path $PSScriptRoot 'assets\app_icon_source.png'
+$source = [System.Drawing.Bitmap]::FromFile($sourcePath)
+$recolored = [FermenterIconGenerator]::Recolor($source)
 $source.Dispose()
 
 try {
+    $master = New-Object System.Drawing.Bitmap(1024, 1024)
+    try {
+        $graphics = [System.Drawing.Graphics]::FromImage($master)
+        try {
+            $graphics.Clear([System.Drawing.ColorTranslator]::FromHtml('#F5EFF8'))
+            $graphics.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::HighQuality
+            $graphics.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+            $graphics.PixelOffsetMode = [System.Drawing.Drawing2D.PixelOffsetMode]::HighQuality
+            $iconSize = 760
+            $offset = [int](($master.Width - $iconSize) / 2)
+            $graphics.DrawImage(
+                $recolored,
+                [System.Drawing.Rectangle]::new($offset, $offset, $iconSize, $iconSize))
+        }
+        finally {
+            $graphics.Dispose()
+        }
+    }
+    finally {
+        $recolored.Dispose()
+    }
+
     $iosContents = Get-Content (Join-Path $iconSet 'Contents.json') -Raw | ConvertFrom-Json
     foreach ($entry in $iosContents.images) {
         if (-not $entry.filename) { continue }
