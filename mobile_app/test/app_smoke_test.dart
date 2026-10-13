@@ -80,30 +80,55 @@ void main() {
       theme: buildAppTheme(),
       home: OnboardingPage(onDone: () => done = true),
     ));
-    // 第三页的曲线是循环动画，所以全程只用显式 pump，不用 pumpAndSettle。
+    // 引导页包含按需播放的动画，全程使用显式 pump。
     await tester.pump();
 
     expect(find.text('From inoculation to harvest — made simple.'),
         findsOneWidget);
+    expect(find.text('Tap the illustration'), findsOneWidget);
+    expect(find.byType(Image), findsOneWidget);
     expect(find.text('Skip'), findsOneWidget);
     expect(find.text('Get started'), findsNothing);
 
-    await tester.tap(find.byType(FilledButton));
+    await tester.tap(find.text('Tap the illustration'));
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('Welcome to the lab!'), findsOneWidget);
+
+    await tester.ensureVisible(find.text('Preview a sample reading'));
+    await tester.tap(find.text('Preview a sample reading'));
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('Sample culture is growing'), findsOneWidget);
+
+    await tester.ensureVisible(find.text('Continue'));
+    await tester.tap(find.text('Continue'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
     expect(find.text('Three signals, one screen'), findsOneWidget);
+    expect(find.text('Tap the illustration'), findsOneWidget);
 
-    await tester.tap(find.byType(FilledButton));
+    await tester.ensureVisible(find.widgetWithText(ChoiceChip, 'Temperature'));
+    await tester.tap(find.widgetWithText(ChoiceChip, 'Temperature'));
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('The culture is at its target.'), findsOneWidget);
+    expect(find.text('37.0 °C'), findsOneWidget);
+
+    await tester.ensureVisible(find.text('Continue'));
+    await tester.tap(find.text('Continue'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
     expect(find.text('Harvest on signal'), findsOneWidget);
     expect(find.text('Get started'), findsOneWidget);
 
-    await tester.tap(find.byType(FilledButton));
+    await tester.ensureVisible(find.text('Preview harvest signal'));
+    await tester.tap(find.text('Preview harvest signal'));
+    await tester.pump(const Duration(milliseconds: 3000));
+
+    await tester.ensureVisible(find.text('Get started'));
+    await tester.tap(find.text('Get started'));
     await tester.pump();
     expect(done, isTrue);
 
-    // 卸载页面，停掉循环动画。
+    // 卸载页面，清理按需播放的动画。
     await tester.pumpWidget(const SizedBox());
   });
 

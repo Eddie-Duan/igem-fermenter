@@ -49,3 +49,6 @@ app.*.map.json
 
 #wiki
 /wiki/
+
+# Local Recraft API credentials
+.env.recraft

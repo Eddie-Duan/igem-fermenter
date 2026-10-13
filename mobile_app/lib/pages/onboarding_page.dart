@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 
 import '../services/onboarding_store.dart';
 import '../services/simulated_sensor_source.dart';
-import '../widgets/feature_row.dart';
 
 /// 新用户引导：首次启动时自动展示，之后可从首页右上角重播。
 ///
@@ -37,6 +36,9 @@ class _OnboardingPageState extends State<OnboardingPage> {
 
   final PageController _pageController = PageController();
   int _index = 0;
+  int _selectedSignal = 0;
+  bool _mascotTapped = false;
+  bool _samplePreviewVisible = false;
 
   bool get _isLast => _index == _pageCount - 1;
 
@@ -87,7 +89,10 @@ class _OnboardingPageState extends State<OnboardingPage> {
                 Expanded(
                   child: PageView(
                     controller: _pageController,
-                    onPageChanged: (index) => setState(() => _index = index),
+                    onPageChanged: (index) => setState(() {
+                      _index = index;
+                      _mascotTapped = false;
+                    }),
                     children: [
                       _slide(0, _welcomeSlide()),
                       _slide(1, _signalsSlide()),
@@ -125,8 +130,11 @@ class _OnboardingPageState extends State<OnboardingPage> {
   Widget _welcomeSlide() {
     final scheme = Theme.of(context).colorScheme;
     return _pageShell([
-      Center(child: _logoBadge(scheme)),
-      const SizedBox(height: 26),
+      _mascotArtwork(
+        'assets/images/onboarding/mascot_welcome_v3.png',
+        height: 162,
+      ),
+      const SizedBox(height: 16),
       const Text('iGEM Fermenter',
           textAlign: TextAlign.center,
           style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold)),
@@ -163,12 +171,66 @@ class _OnboardingPageState extends State<OnboardingPage> {
           ),
         ),
       ),
+      const SizedBox(height: 14),
+      FilledButton.tonalIcon(
+        onPressed: () =>
+            setState(() => _samplePreviewVisible = !_samplePreviewVisible),
+        icon: Icon(_samplePreviewVisible ? Icons.visibility_off : Icons.play_arrow),
+        label: Text(
+            _samplePreviewVisible ? 'Hide sample reading' : 'Preview a sample reading'),
+      ),
+      AnimatedSize(
+        duration: const Duration(milliseconds: 240),
+        curve: Curves.easeOutCubic,
+        child: _samplePreviewVisible
+            ? Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Card(
+                  color: scheme.primaryContainer,
+                  child: const ListTile(
+                    leading: Icon(Icons.bubble_chart_outlined),
+                    title: Text('Sample culture is growing'),
+                    subtitle: Text('OD600  1.24     Temperature  37.0 °C'),
+                  ),
+                ),
+              )
+            : const SizedBox(width: double.infinity),
+      ),
     ]);
   }
 
   Widget _signalsSlide() {
     final scheme = Theme.of(context).colorScheme;
+    final signals = [
+      (
+        label: 'OD600',
+        icon: Icons.bubble_chart_outlined,
+        value: '1.24',
+        detail: 'Culture growth is rising.',
+        color: scheme.primary,
+      ),
+      (
+        label: 'Temperature',
+        icon: Icons.thermostat_outlined,
+        value: '37.0 °C',
+        detail: 'The culture is at its target.',
+        color: scheme.secondary,
+      ),
+      (
+        label: 'pH',
+        icon: Icons.science_outlined,
+        value: '6.8',
+        detail: 'The buffer is being monitored.',
+        color: scheme.tertiary,
+      ),
+    ];
+    final selected = signals[_selectedSignal];
     return _pageShell([
+      _mascotArtwork(
+        'assets/images/onboarding/mascot_signals_v3.png',
+        height: 160,
+      ),
+      const SizedBox(height: 4),
       _slideTitle('Three signals, one screen', scheme.tertiary),
       const SizedBox(height: 8),
       Text(
@@ -177,24 +239,53 @@ class _OnboardingPageState extends State<OnboardingPage> {
         style: TextStyle(
             fontSize: 13.5, height: 1.35, color: scheme.onSurfaceVariant),
       ),
-      const SizedBox(height: 18),
-      FeatureRow(
-        icon: Icons.bubble_chart_outlined,
-        title: 'Turbidity (OD600)',
-        body: 'Tracks culture growth and lysis.',
-        color: scheme.primary,
+      const SizedBox(height: 14),
+      Wrap(
+        alignment: WrapAlignment.center,
+        spacing: 8,
+        children: [
+          for (var i = 0; i < signals.length; i++)
+            ChoiceChip(
+              label: Text(signals[i].label),
+              selected: i == _selectedSignal,
+              onSelected: (_) => setState(() => _selectedSignal = i),
+            ),
+        ],
       ),
-      FeatureRow(
-        icon: Icons.thermostat_outlined,
-        title: 'Temperature',
-        body: 'Holds your target temperature.',
-        color: scheme.secondary,
-      ),
-      FeatureRow(
-        icon: Icons.science_outlined,
-        title: 'pH',
-        body: 'Tracks buffer changes.',
-        color: scheme.tertiary,
+      const SizedBox(height: 8),
+      AnimatedSwitcher(
+        duration: const Duration(milliseconds: 220),
+        child: Container(
+          key: ValueKey(selected.label),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: selected.color.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Row(
+            children: [
+              Icon(selected.icon, size: 32, color: selected.color),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(selected.label,
+                        style: TextStyle(
+                            color: selected.color,
+                            fontWeight: FontWeight.bold)),
+                    Text(selected.detail),
+                  ],
+                ),
+              ),
+              Text(selected.value,
+                  style: TextStyle(
+                      color: selected.color,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold)),
+            ],
+          ),
+        ),
       ),
     ]);
   }
@@ -202,8 +293,13 @@ class _OnboardingPageState extends State<OnboardingPage> {
   Widget _harvestSlide() {
     final scheme = Theme.of(context).colorScheme;
     return _pageShell([
+      _mascotArtwork(
+        'assets/images/onboarding/mascot_harvest_v3.png',
+        height: 160,
+      ),
+      const SizedBox(height: 4),
       const _HarvestCurvePreview(),
-      const SizedBox(height: 22),
+      const SizedBox(height: 8),
       _slideTitle('Harvest on signal', scheme.tertiary),
       const SizedBox(height: 8),
       Text(
@@ -253,28 +349,46 @@ class _OnboardingPageState extends State<OnboardingPage> {
       style: TextStyle(
           fontSize: 21, fontWeight: FontWeight.bold, color: color));
 
-  Widget _logoBadge(ColorScheme scheme) => Container(
-        padding: const EdgeInsets.all(22),
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              scheme.primary,
-              Color.lerp(scheme.primary, scheme.tertiary, 0.55)!,
-            ],
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: scheme.primary.withValues(alpha: 0.3),
-              blurRadius: 26,
-              offset: const Offset(0, 10),
+  Widget _mascotArtwork(String asset, {required double height}) {
+    final scheme = Theme.of(context).colorScheme;
+    return Semantics(
+      button: true,
+      label: _mascotTapped ? 'The mascot says hello' : 'Tap the mascot illustration',
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => setState(() => _mascotTapped = !_mascotTapped),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            AnimatedScale(
+              scale: _mascotTapped ? 1.04 : 1,
+              duration: const Duration(milliseconds: 220),
+              curve: Curves.easeOutBack,
+              child: Image.asset(
+                asset,
+                width: double.infinity,
+                height: height,
+                fit: BoxFit.cover,
+              ),
+            ),
+            const SizedBox(height: 2),
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 160),
+              child: Text(
+                _mascotTapped ? 'Welcome to the lab!' : 'Tap the illustration',
+                key: ValueKey<bool>(_mascotTapped),
+                style: TextStyle(
+                  fontSize: 11,
+                  color: scheme.primary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ),
           ],
         ),
-        child: Icon(Icons.biotech_rounded, size: 46, color: scheme.onPrimary),
-      );
+      ),
+    );
+  }
 
   Widget _phasePill(String label, Color color) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
@@ -360,11 +474,10 @@ class _HarvestCurvePreview extends StatefulWidget {
 
 class _HarvestCurvePreviewState extends State<_HarvestCurvePreview>
     with SingleTickerProviderStateMixin {
-  /// 4 秒一轮：前 2.8 秒画曲线，最后 1.2 秒亮起收获标记。
   late final AnimationController _controller = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 4000),
-  )..repeat();
+    duration: const Duration(milliseconds: 2800),
+  );
 
   @override
   void dispose() {
@@ -375,22 +488,32 @@ class _HarvestCurvePreviewState extends State<_HarvestCurvePreview>
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return SizedBox(
-      height: 168,
-      width: double.infinity,
-      child: AnimatedBuilder(
-        animation: _controller,
-        builder: (context, _) => CustomPaint(
-          painter: _HarvestCurvePainter(
-            progress: _controller.value,
-            line: scheme.primary,
-            fill: scheme.primary.withValues(alpha: 0.16),
-            guide: scheme.outlineVariant,
-            alert: scheme.tertiary,
-            onAlert: scheme.onTertiary,
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SizedBox(
+          height: 168,
+          width: double.infinity,
+          child: AnimatedBuilder(
+            animation: _controller,
+            builder: (context, _) => CustomPaint(
+              painter: _HarvestCurvePainter(
+                progress: _controller.value,
+                line: scheme.primary,
+                fill: scheme.primary.withValues(alpha: 0.16),
+                guide: scheme.outlineVariant,
+                alert: scheme.tertiary,
+                onAlert: scheme.onTertiary,
+              ),
+            ),
           ),
         ),
-      ),
+        TextButton.icon(
+          onPressed: () => _controller.forward(from: 0),
+          icon: const Icon(Icons.play_arrow_rounded),
+          label: const Text('Preview harvest signal'),
+        ),
+      ],
     );
   }
 }
