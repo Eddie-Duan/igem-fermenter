@@ -303,7 +303,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
       _slideTitle('Harvest on signal', scheme.tertiary),
       const SizedBox(height: 8),
       Text(
-        'Get alerted when turbidity signals harvest.',
+        'Know exactly when to harvest.',
         textAlign: TextAlign.center,
         style: TextStyle(
             fontSize: 13.5, height: 1.35, color: scheme.onSurfaceVariant),
@@ -351,12 +351,16 @@ class _OnboardingPageState extends State<OnboardingPage> {
 
   Widget _mascotArtwork(String asset, {required double height}) {
     final scheme = Theme.of(context).colorScheme;
+    final onTap = () => setState(() => _mascotTapped = !_mascotTapped);
     return Semantics(
       button: true,
-      label: _mascotTapped ? 'The mascot says hello' : 'Tap the mascot illustration',
+      label:
+          _mascotTapped ? 'The mascot says hello' : 'Tap the mascot illustration',
+      onTap: onTap,
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
-        onTap: () => setState(() => _mascotTapped = !_mascotTapped),
+        excludeFromSemantics: true,
+        onTap: onTap,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -408,19 +412,28 @@ class _OnboardingPageState extends State<OnboardingPage> {
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         for (var i = 0; i < _pageCount; i++)
-          GestureDetector(
+          Semantics(
+            button: true,
+            selected: i == _index,
+            label: 'Page ${i + 1} of $_pageCount',
             onTap: () => _goTo(i),
-            behavior: HitTestBehavior.opaque,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 10),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 260),
-                curve: Curves.easeOutCubic,
-                width: i == _index ? 24 : 8,
-                height: 8,
-                decoration: BoxDecoration(
-                  color: i == _index ? scheme.primary : scheme.outlineVariant,
-                  borderRadius: BorderRadius.circular(4),
+            child: GestureDetector(
+              onTap: () => _goTo(i),
+              behavior: HitTestBehavior.opaque,
+              excludeFromSemantics: true,
+              child: Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 6, vertical: 10),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 260),
+                  curve: Curves.easeOutCubic,
+                  width: i == _index ? 24 : 8,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    color:
+                        i == _index ? scheme.primary : scheme.outlineVariant,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
                 ),
               ),
             ),
@@ -494,16 +507,20 @@ class _HarvestCurvePreviewState extends State<_HarvestCurvePreview>
         SizedBox(
           height: 168,
           width: double.infinity,
-          child: AnimatedBuilder(
-            animation: _controller,
-            builder: (context, _) => CustomPaint(
-              painter: _HarvestCurvePainter(
-                progress: _controller.value,
-                line: scheme.primary,
-                fill: scheme.primary.withValues(alpha: 0.16),
-                guide: scheme.outlineVariant,
-                alert: scheme.tertiary,
-                onAlert: scheme.onTertiary,
+          child: Semantics(
+            label:
+                'OD600 growth curve. The harvest window is highlighted after growth peaks.',
+            child: AnimatedBuilder(
+              animation: _controller,
+              builder: (context, _) => CustomPaint(
+                painter: _HarvestCurvePainter(
+                  progress: _controller.value,
+                  line: scheme.primary,
+                  fill: scheme.primary.withValues(alpha: 0.16),
+                  guide: scheme.outlineVariant,
+                  alert: scheme.tertiary,
+                  onAlert: scheme.onTertiary,
+                ),
               ),
             ),
           ),
@@ -636,5 +653,10 @@ class _HarvestCurvePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _HarvestCurvePainter old) =>
-      old.progress != progress || old.line != line || old.alert != alert;
+      old.progress != progress ||
+      old.line != line ||
+      old.fill != fill ||
+      old.guide != guide ||
+      old.alert != alert ||
+      old.onAlert != onAlert;
 }

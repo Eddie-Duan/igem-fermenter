@@ -145,4 +145,51 @@ void main() {
     expect(tester.widget<AppBar>(find.byType(AppBar)).automaticallyImplyLeading,
         isTrue);
   });
+
+  testWidgets('first-run onboarding can be skipped', (tester) async {
+    var done = false;
+    await tester.pumpWidget(MaterialApp(
+      theme: buildAppTheme(),
+      home: OnboardingPage(onDone: () => done = true),
+    ));
+    await tester.pump();
+
+    await tester.tap(find.text('Skip'));
+    expect(done, isTrue);
+  });
+
+  testWidgets('onboarding content scrolls on a compact screen', (tester) async {
+    tester.view.physicalSize = const Size(320, 568);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(MaterialApp(
+      theme: buildAppTheme(),
+      home: OnboardingPage(onDone: () {}),
+    ));
+    await tester.pump();
+
+    await tester.ensureVisible(find.text('Preview a sample reading'));
+    await tester.tap(find.text('Preview a sample reading'));
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(tester.takeException(), isNull);
+
+    await tester.tap(find.text('Continue'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.text('Three signals, one screen'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+
+    await tester.tap(find.text('Continue'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.ensureVisible(find.text('Preview harvest signal'));
+    await tester.tap(find.text('Preview harvest signal'));
+    await tester.pump(const Duration(milliseconds: 3000));
+    expect(find.text('Harvest on signal'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+
+    await tester.pumpWidget(const SizedBox());
+  });
 }
