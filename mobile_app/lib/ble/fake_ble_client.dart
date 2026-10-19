@@ -14,7 +14,7 @@ import 'ble_protocol.dart';
 /// 发完回 SYNC_END。
 class FakeBleClient implements FermenterBleClient {
   FakeBleClient({
-    this.deviceName = 'Fermenter (demo)',
+    this.deviceName = 'FeroEase (demo)',
     this.deviceId = 'FAKE-ESP32-S3-0001',
     int historyRecords = 8,
     this.liveSamples = false,

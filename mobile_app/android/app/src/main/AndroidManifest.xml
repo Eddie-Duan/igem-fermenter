@@ -27,7 +27,7 @@
         android:required="false" />
 
     <application
-        android:label="Fermenter"
+        android:label="FeroEase"
         android:allowBackup="false"
         android:usesCleartextTraffic="false"
         android:name="${applicationName}"

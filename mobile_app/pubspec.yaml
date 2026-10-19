@@ -1,5 +1,5 @@
 name: fermenter_app
-description: iGEM fermenter companion - monitor temperature, pH and turbidity, detect the harvest moment, and control stirring and heating.
+description: FeroEase - companion app for the iGEM fermenter; monitor temperature, pH and turbidity, detect the harvest moment, and control stirring and heating.
 publish_to: "none"
 version: 0.1.0+1
 
@@ -33,5 +33,3 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
-  assets:
-    - assets/images/onboarding/mascot_parcel.png

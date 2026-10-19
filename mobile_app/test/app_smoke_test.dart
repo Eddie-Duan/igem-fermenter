@@ -25,8 +25,8 @@ void main() {
     await tester.pumpAndSettle();
 
     // 欢迎页：品牌区 + 两个入口（新建 / 载入样例数据）。
-    expect(find.text('Fermenter'), findsOneWidget); // AppBar 标题
-    expect(find.text('iGEM Fermenter'), findsOneWidget);
+    // AppBar 标题与品牌区同名，因此匹配到两个。
+    expect(find.text('FeroEase'), findsNWidgets(2));
     expect(find.text('Create your first batch'), findsOneWidget);
     expect(find.text('Load sample data'), findsOneWidget);
     // 没有批次时不重复挂 FAB。
@@ -83,11 +83,8 @@ void main() {
     // 收获曲线会循环播放，全程使用显式 pump。
     await tester.pump();
 
-    expect(find.text('From inoculation to harvest, without the guesswork.'),
+    expect(find.text('From inoculation to harvest — made simple.'),
         findsOneWidget);
-    expect(find.text('Hi, I’m PARCEL. Let’s follow your culture together.'),
-        findsOneWidget);
-    expect(find.byType(Image), findsWidgets);
     expect(find.text('Skip'), findsOneWidget);
     expect(find.text('Get started'), findsNothing);
     expect(find.text('Preview a sample reading'), findsNothing);
@@ -98,9 +95,6 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
     expect(find.text('Three signals, one screen'), findsOneWidget);
-    expect(
-        find.text('I watch OD600, temperature and pH as your culture grows.'),
-        findsOneWidget);
     expect(find.text('Turbidity (OD600)'), findsOneWidget);
     expect(find.text('Temperature'), findsOneWidget);
     expect(find.text('pH'), findsOneWidget);
@@ -110,8 +104,6 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
     expect(find.text('Harvest on signal'), findsOneWidget);
-    expect(find.text('When OD600 drops after growth, I’ll flag the harvest window.'),
-        findsOneWidget);
     expect(find.text('Get started'), findsOneWidget);
     await tester.pump(const Duration(milliseconds: 3000));
     expect(find.text('Preview harvest signal'), findsNothing);
@@ -163,7 +155,7 @@ void main() {
     ));
     await tester.pump();
 
-    expect(find.text('Hi, I’m PARCEL. Let’s follow your culture together.'),
+    expect(find.text('From inoculation to harvest — made simple.'),
         findsOneWidget);
     expect(tester.takeException(), isNull);
 

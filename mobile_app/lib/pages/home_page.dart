@@ -122,7 +122,7 @@ class _HomePageState extends State<HomePage> {
       animation: _repaint,
       builder: (context, _) => Scaffold(
         appBar: AppBar(
-          title: const Text('Fermenter'),
+          title: const Text('FeroEase'),
           actions: [
             IconButton(
                 onPressed: _openDevicePage,
@@ -294,7 +294,7 @@ class _HomePageState extends State<HomePage> {
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  'iGEM Fermenter',
+                  'FeroEase',
                   style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                       fontWeight: FontWeight.bold,
                       color: scheme.onPrimaryContainer),

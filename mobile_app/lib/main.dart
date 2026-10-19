@@ -23,7 +23,7 @@ class FermenterApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => MaterialApp(
-    title: 'iGEM Fermenter',
+    title: 'FeroEase',
     debugShowCheckedModeBanner: false,
     locale: const Locale('en'),
     supportedLocales: const [Locale('en')],

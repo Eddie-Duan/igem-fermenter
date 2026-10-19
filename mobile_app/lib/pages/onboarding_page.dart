@@ -13,7 +13,7 @@ import '../widgets/feature_row.dart';
 /// 圆点和按钮都不会跳位：
 ///   1. 这是什么 / 为什么需要它；
 ///   2. 它记录哪三个信号；
-///   3. 收获信号是怎么被识别出来的。
+///   3. 收获信号是怎么被识别出来的（曲线动画演示）。
 class OnboardingPage extends StatefulWidget {
   const OnboardingPage({
     super.key,
@@ -125,14 +125,13 @@ class _OnboardingPageState extends State<OnboardingPage> {
   Widget _welcomeSlide() {
     final scheme = Theme.of(context).colorScheme;
     return _pageShell([
-      _mascotDialogue(
-          'Hi, I’m PARCEL. Let’s follow your culture together.'),
-      const SizedBox(height: 16),
-      const Text('iGEM Fermenter',
+      Center(child: _logoBadge(scheme)),
+      const SizedBox(height: 26),
+      const Text('FeroEase',
           textAlign: TextAlign.center,
           style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold)),
       const SizedBox(height: 10),
-      Text('From inoculation to harvest, without the guesswork.',
+      Text('From inoculation to harvest — made simple.',
           textAlign: TextAlign.center,
           style: TextStyle(
               fontSize: 14.5,
@@ -141,11 +140,10 @@ class _OnboardingPageState extends State<OnboardingPage> {
               color: scheme.primary)),
       const SizedBox(height: 14),
       Text(
-        'Temperature, pH and turbidity in one place — with a clear signal '
-        'the moment the culture is ready to harvest.',
+        'Track key signals. Know when to harvest.',
         textAlign: TextAlign.center,
         style: TextStyle(
-            fontSize: 14, height: 1.4, color: scheme.onSurfaceVariant),
+            fontSize: 13.5, height: 1.35, color: scheme.onSurfaceVariant),
       ),
       const SizedBox(height: 18),
       Center(
@@ -156,7 +154,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
             borderRadius: BorderRadius.circular(20),
           ),
           child: Text(
-            'No hardware needed — start with the built-in sample data.',
+            'No hardware needed. Try sample data.',
             textAlign: TextAlign.center,
             style: TextStyle(
                 fontSize: 12,
@@ -171,38 +169,31 @@ class _OnboardingPageState extends State<OnboardingPage> {
   Widget _signalsSlide() {
     final scheme = Theme.of(context).colorScheme;
     return _pageShell([
-      _mascotDialogue(
-          'I watch OD600, temperature and pH as your culture grows.'),
-      const SizedBox(height: 16),
       _slideTitle('Three signals, one screen', scheme.tertiary),
       const SizedBox(height: 8),
       Text(
-        'Every reading is stored and plotted on a live time course, so the '
-        'trend is visible at a glance.',
+        'Live curves make every trend clear.',
         textAlign: TextAlign.center,
         style: TextStyle(
-            fontSize: 13.5, height: 1.4, color: scheme.onSurfaceVariant),
+            fontSize: 13.5, height: 1.35, color: scheme.onSurfaceVariant),
       ),
       const SizedBox(height: 18),
       FeatureRow(
         icon: Icons.bubble_chart_outlined,
         title: 'Turbidity (OD600)',
-        body: 'The cloudiness of the culture — it climbs while the cells grow '
-            'and falls once they lyse.',
+        body: 'Tracks culture growth and lysis.',
         color: scheme.primary,
       ),
       FeatureRow(
         icon: Icons.thermostat_outlined,
         title: 'Temperature',
-        body: 'Ramped to your target and held there, with the heater and '
-            'stirrer under your control.',
+        body: 'Holds your target temperature.',
         color: scheme.secondary,
       ),
       FeatureRow(
         icon: Icons.science_outlined,
         title: 'pH',
-        body: 'The buffer drifts down during growth and recovers slightly '
-            'during lysis.',
+        body: 'Tracks buffer changes.',
         color: scheme.tertiary,
       ),
     ]);
@@ -211,20 +202,15 @@ class _OnboardingPageState extends State<OnboardingPage> {
   Widget _harvestSlide() {
     final scheme = Theme.of(context).colorScheme;
     return _pageShell([
-      _mascotDialogue(
-          'When OD600 drops after growth, I’ll flag the harvest window.'),
-      const SizedBox(height: 12),
       const _HarvestCurvePreview(),
-      const SizedBox(height: 8),
+      const SizedBox(height: 22),
       _slideTitle('Harvest on signal', scheme.tertiary),
       const SizedBox(height: 8),
       Text(
-        'Turbidity rises during growth, plateaus, then falls sharply as the '
-        'cells lyse. The app watches for that sustained fall and alerts you — '
-        'that is the harvest window.',
+        'Get alerted when turbidity signals harvest.',
         textAlign: TextAlign.center,
         style: TextStyle(
-            fontSize: 13.5, height: 1.4, color: scheme.onSurfaceVariant),
+            fontSize: 13.5, height: 1.35, color: scheme.onSurfaceVariant),
       ),
       const SizedBox(height: 16),
       Wrap(
@@ -267,61 +253,28 @@ class _OnboardingPageState extends State<OnboardingPage> {
       style: TextStyle(
           fontSize: 21, fontWeight: FontWeight.bold, color: color));
 
-  Widget _mascotDialogue(String dialogue) {
-    final scheme = Theme.of(context).colorScheme;
-    return Semantics(
-      label: 'PARCEL says: $dialogue',
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          SizedBox(
-            width: 136,
-            height: 116,
-            child: Image.asset(
-              'assets/images/onboarding/mascot_parcel.png',
-              fit: BoxFit.contain,
-            ),
+  Widget _logoBadge(ColorScheme scheme) => Container(
+        padding: const EdgeInsets.all(22),
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              scheme.primary,
+              Color.lerp(scheme.primary, scheme.tertiary, 0.55)!,
+            ],
           ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: scheme.primaryContainer,
-                    border: Border.all(color: scheme.outlineVariant),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Text(
-                    dialogue,
-                    style: TextStyle(
-                      fontSize: 12.5,
-                      height: 1.3,
-                      color: scheme.onPrimaryContainer,
-                    ),
-                  ),
-                ),
-                Transform.translate(
-                  offset: const Offset(14, -1),
-                  child: CustomPaint(
-                    size: const Size(16, 10),
-                    painter: _SpeechBubbleTailPainter(
-                      fill: scheme.primaryContainer,
-                      border: scheme.outlineVariant,
-                    ),
-                  ),
-                ),
-              ],
+          boxShadow: [
+            BoxShadow(
+              color: scheme.primary.withValues(alpha: 0.3),
+              blurRadius: 26,
+              offset: const Offset(0, 10),
             ),
-          ),
-        ],
-      ),
-    );
-  }
+          ],
+        ),
+        child: Icon(Icons.biotech_rounded, size: 46, color: scheme.onPrimary),
+      );
 
   Widget _phasePill(String label, Color color) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
@@ -341,28 +294,19 @@ class _OnboardingPageState extends State<OnboardingPage> {
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         for (var i = 0; i < _pageCount; i++)
-          Semantics(
-            button: true,
-            selected: i == _index,
-            label: 'Page ${i + 1} of $_pageCount',
+          GestureDetector(
             onTap: () => _goTo(i),
-            child: GestureDetector(
-              onTap: () => _goTo(i),
-              behavior: HitTestBehavior.opaque,
-              excludeFromSemantics: true,
-              child: Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 6, vertical: 10),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 260),
-                  curve: Curves.easeOutCubic,
-                  width: i == _index ? 24 : 8,
-                  height: 8,
-                  decoration: BoxDecoration(
-                    color:
-                        i == _index ? scheme.primary : scheme.outlineVariant,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
+            behavior: HitTestBehavior.opaque,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 10),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 260),
+                curve: Curves.easeOutCubic,
+                width: i == _index ? 24 : 8,
+                height: 8,
+                decoration: BoxDecoration(
+                  color: i == _index ? scheme.primary : scheme.outlineVariant,
+                  borderRadius: BorderRadius.circular(4),
                 ),
               ),
             ),
@@ -370,34 +314,6 @@ class _OnboardingPageState extends State<OnboardingPage> {
       ],
     );
   }
-}
-
-class _SpeechBubbleTailPainter extends CustomPainter {
-  const _SpeechBubbleTailPainter({required this.fill, required this.border});
-
-  final Color fill;
-  final Color border;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final tail = Path()
-      ..moveTo(0, 0)
-      ..lineTo(size.width, 0)
-      ..lineTo(4, size.height)
-      ..close();
-    canvas.drawPath(tail, Paint()..color = fill);
-    canvas.drawPath(
-      tail,
-      Paint()
-        ..color = border
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1,
-    );
-  }
-
-  @override
-  bool shouldRepaint(covariant _SpeechBubbleTailPainter old) =>
-      old.fill != fill || old.border != border;
 }
 
 /// 翻页时的淡入 + 轻微上移，让滑动更有层次（跟手滑动本身仍由 PageView 负责）。
@@ -433,7 +349,8 @@ class _SlideIn extends StatelessWidget {
       );
 }
 
-/// 第三页用真实的仿真曲线自动演示 OD600 变化与收获提示。
+/// 第三页的动画演示：用真实的仿真曲线画出一条 OD600 曲线，
+/// 画完后在收获时刻亮起脉冲标记，对应 App 里的「Harvest time」告警。
 class _HarvestCurvePreview extends StatefulWidget {
   const _HarvestCurvePreview();
 
@@ -443,6 +360,7 @@ class _HarvestCurvePreview extends StatefulWidget {
 
 class _HarvestCurvePreviewState extends State<_HarvestCurvePreview>
     with SingleTickerProviderStateMixin {
+  /// 4 秒一轮：前 2.8 秒画曲线，最后 1.2 秒亮起收获标记。
   late final AnimationController _controller = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 4000),
@@ -460,20 +378,16 @@ class _HarvestCurvePreviewState extends State<_HarvestCurvePreview>
     return SizedBox(
       height: 168,
       width: double.infinity,
-      child: Semantics(
-        label:
-            'OD600 growth curve. The harvest window is highlighted after growth peaks.',
-        child: AnimatedBuilder(
-          animation: _controller,
-          builder: (context, _) => CustomPaint(
-            painter: _HarvestCurvePainter(
-              progress: _controller.value,
-              line: scheme.primary,
-              fill: scheme.primary.withValues(alpha: 0.16),
-              guide: scheme.outlineVariant,
-              alert: scheme.tertiary,
-              onAlert: scheme.onTertiary,
-            ),
+      child: AnimatedBuilder(
+        animation: _controller,
+        builder: (context, _) => CustomPaint(
+          painter: _HarvestCurvePainter(
+            progress: _controller.value,
+            line: scheme.primary,
+            fill: scheme.primary.withValues(alpha: 0.16),
+            guide: scheme.outlineVariant,
+            alert: scheme.tertiary,
+            onAlert: scheme.onTertiary,
           ),
         ),
       ),
@@ -599,10 +513,5 @@ class _HarvestCurvePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _HarvestCurvePainter old) =>
-      old.progress != progress ||
-      old.line != line ||
-      old.fill != fill ||
-      old.guide != guide ||
-      old.alert != alert ||
-      old.onAlert != onAlert;
+      old.progress != progress || old.line != line || old.alert != alert;
 }

@@ -7,7 +7,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Fermenter</string>
+	<string>FeroEase</string>
 	<key>CFBundleLocalizations</key>
 	<array>
 		<string>zh_CN</string>
