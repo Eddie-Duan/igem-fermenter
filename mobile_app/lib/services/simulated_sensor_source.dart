@@ -56,7 +56,11 @@ class SimulatedSensorSource implements SensorSource {
     _od = _initialOd;
   }
 
-  double _noise() => (_random.nextDouble() * 2 - 1) * 0.005;
+  /// 读数噪声幅度（±OD600）。采样间隔为 5 s 时，单个间隔内的真实变化只有
+  /// 约 0.001 OD，噪声若再大就会把斜率判据淹掉，演示批次会时中时不中。
+  static const double _noiseAmplitude = 0.002;
+
+  double _noise() => (_random.nextDouble() * 2 - 1) * _noiseAmplitude;
 
   /// 基础浓度曲线（无噪声），t 为仿真小时。
   static double odAt(double t) {
