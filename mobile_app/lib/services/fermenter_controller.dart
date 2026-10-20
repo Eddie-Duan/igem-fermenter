@@ -66,9 +66,12 @@ class FermenterController extends ChangeNotifier implements BleReadingSink {
   var _disposed = false;
   var _revision = 0;
 
+  /// 默认仿真源。噪声用「批次 id 派生」的种子，同一批次每次重放结果一致，
+  /// 免得收获判据在演示批次上时中时不中。
   static SimulatedSensorSource _defaultSimSource(
           int projectId, SensorReading? last) =>
       SimulatedSensorSource(
+          random: math.Random(projectId * 7919 + 17),
           initialTemperatureC: last?.temperatureC,
           initialPh: last?.ph,
           initialOd: last?.od);

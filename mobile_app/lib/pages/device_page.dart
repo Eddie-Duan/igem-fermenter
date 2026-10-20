@@ -154,7 +154,10 @@ class _DevicePageState extends State<DevicePage> {
                   color: Theme.of(context).colorScheme.onSurfaceVariant),
             ),
             const SizedBox(height: 12),
-            Row(
+            Wrap(
+              spacing: 10,
+              runSpacing: 8,
+              crossAxisAlignment: WrapCrossAlignment.center,
               children: [
                 FilledButton.icon(
                   onPressed: manager.scanning
@@ -168,7 +171,6 @@ class _DevicePageState extends State<DevicePage> {
                       : const Icon(Icons.search, size: 18),
                   label: Text(manager.scanning ? 'Stop scan' : 'Scan'),
                 ),
-                const SizedBox(width: 10),
                 TextButton.icon(
                   onPressed: manager.scanning
                       ? null

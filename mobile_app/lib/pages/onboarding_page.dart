@@ -145,24 +145,6 @@ class _OnboardingPageState extends State<OnboardingPage> {
         style: TextStyle(
             fontSize: 13.5, height: 1.35, color: scheme.onSurfaceVariant),
       ),
-      const SizedBox(height: 18),
-      Center(
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-          decoration: BoxDecoration(
-            color: scheme.secondaryContainer,
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: Text(
-            'No hardware needed. Try sample data.',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: scheme.onSecondaryContainer),
-          ),
-        ),
-      ),
     ]);
   }
 
