@@ -5,7 +5,7 @@
 ## 目录
 
 - `发酵罐方案.md` / `iGEM发酵罐项目整理_1_3_4.md`：硬件方案与参考队伍调研（Vilnius-Lithuania 2024 等）
-- `mobile_app/`：Android / iOS 手机 App（Flutter）
+- `mobile_app/`：Android 手机 App（Flutter）
 - `firmware/esp32-s3/`：主控固件示例（Arduino 风格 `.ino`，采样 → flash 日志 → BLE 同步）
 - `docs/`：BLE 协议（[`ble-gatt.md`](docs/ble-gatt.md) / [`ble-data-format.md`](docs/ble-data-format.md)）
 - `.github/workflows/`：GitHub Actions 构建与校验
@@ -25,7 +25,6 @@
 本机无需安装 Flutter SDK，校验走 GitHub Actions（pinned Flutter 3.47.4）：
 
 - `flutter-check.yml`：push / PR 触发，`flutter analyze` + `flutter test` + 构建 debug APK（产物在 Actions artifact 中）
-- `ios-check.yml`：手动触发（macOS runner）
 
 本地开发：
 

@@ -130,8 +130,6 @@ public static class FermenterIconGenerator
 '@ -ReferencedAssemblies @('System.dll', 'System.Drawing.dll')
 
 $appRoot = Split-Path -Parent $PSScriptRoot
-$iconSet = Join-Path $appRoot 'ios\Runner\Assets.xcassets\AppIcon.appiconset'
-$masterPath = Join-Path $iconSet 'Icon-App-1024x1024@1x.png'
 $sourcePath = Join-Path $PSScriptRoot 'assets\app_icon_source.png'
 $source = [System.Drawing.Bitmap]::FromFile($sourcePath)
 $recolored = [FermenterIconGenerator]::Recolor($source)
@@ -158,22 +156,6 @@ try {
     }
     finally {
         $recolored.Dispose()
-    }
-
-    $iosContents = Get-Content (Join-Path $iconSet 'Contents.json') -Raw | ConvertFrom-Json
-    foreach ($entry in $iosContents.images) {
-        if (-not $entry.filename) { continue }
-        $points = [double]::Parse(
-            ($entry.size -split 'x')[0],
-            [Globalization.CultureInfo]::InvariantCulture)
-        $scale = [double]::Parse(
-            $entry.scale.TrimEnd('x'),
-            [Globalization.CultureInfo]::InvariantCulture)
-        $size = [int][Math]::Round($points * $scale)
-        [FermenterIconGenerator]::SavePng(
-            $master,
-            (Join-Path $iconSet $entry.filename),
-            $size)
     }
 
     $androidRes = Join-Path $appRoot 'android\app\src\main\res'

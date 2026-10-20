@@ -3,3 +3,6 @@
 
 # Device screenshots used for the wiki draft
 /Screenshot_*.jpg
+
+# Local notes and hardware planning drafts (not published)
+/docs/
