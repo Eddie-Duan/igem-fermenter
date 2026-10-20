@@ -117,16 +117,21 @@ void main() {
     await controller.createProject(const ProjectDraft(
         name: 'Lysis batch', targetTempC: 30, timeScale: 60));
 
+    // 判据要求连续 36 个窗口（每窗口 12 点，3 点平滑），所以至少 47 个读数。
     final ods = <double>[
-      0.1, 0.3, 0.6, 1.0, 1.2, 1.25, 1.2, 1.05, 0.9, 0.75, 0.6,
+      for (var i = 0; i < 40; i++) 0.1 + i * 0.03,
     ];
+    for (var i = 1; i <= 60; i++) {
+      final value = 1.27 - i * 0.02;
+      ods.add(value < 0.05 ? 0.05 : value);
+    }
     final id = controller.projects.single.id;
     for (final od in ods) {
       await controller.addManualReading(id,
           temperatureC: 30, ph: 7.0, od: od);
     }
     expect(controller.projects.single.status, FermenterStatus.harvest);
-    expect(controller.projects.single.peakOd, closeTo(1.25, 0.01));
+    expect(controller.projects.single.peakOd, closeTo(1.27, 0.01));
   });
 
   test('createProject requires a name', () async {

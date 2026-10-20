@@ -244,8 +244,14 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
     final verdict = data.openVerdict;
     final phase = classifyPhase(
       ods: readings.map((r) => r.od).toList(growable: false),
-      verdict: verdict ?? const HarvestVerdict(
-          triggered: false, peakOd: 0, odNow: 0, slope: 0, consecutiveDrop: 0),
+      verdict: verdict ??
+          const HarvestVerdict(
+              triggered: false,
+              peakOd: 0,
+              odNow: 0,
+              slope: 0,
+              slopePerMinute: 0,
+              consecutiveDrop: 0),
       finished: project.status == FermenterStatus.finished,
     );
     final peakAt = _peakHour(readings);

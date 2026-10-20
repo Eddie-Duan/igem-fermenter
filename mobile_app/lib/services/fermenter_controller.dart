@@ -27,8 +27,8 @@ class FermenterController extends ChangeNotifier implements BleReadingSink {
             sourceBuilder ?? _defaultSimSource,
         clock = clock ?? DateTime.now;
 
-  /// 每两次仿真实采样之间间隔的仿真秒数。
-  static const int sampleIntervalSeconds = 120;
+  /// 每两次仿真实采样之间间隔的仿真秒数（与硬件页的 5 s 采样一致）。
+  static const int sampleIntervalSeconds = 5;
 
   /// 样例批次覆盖的仿真时长（20 小时 = 一个完整周期：增殖 → 峰值 → 裂解）。
   static const int sampleBatchSeconds = 20 * 3600;
@@ -166,7 +166,8 @@ class FermenterController extends ChangeNotifier implements BleReadingSink {
     await repository.addReading(reading);
     readings.add(reading);
 
-    final verdict = const HarvestDetector()
+    final verdict = const HarvestDetector(
+            sampleIntervalSeconds: sampleIntervalSeconds)
         .evaluate(readings.map((r) => r.od).toList(growable: false));
     _verdicts[id] = verdict;
 
@@ -533,7 +534,9 @@ class FermenterController extends ChangeNotifier implements BleReadingSink {
     _clockSeconds[projectId] = latestSeconds;
     _lastSampleSeconds[projectId] = latestSeconds;
 
-    final verdict = (_detectors[projectId] ??= const HarvestDetector())
+    final verdict = (_detectors[projectId] ??=
+            const HarvestDetector(
+                sampleIntervalSeconds: deviceSampleIntervalSeconds))
         .evaluate(updated.map((r) => r.od).toList(growable: false));
     _verdicts[projectId] = verdict;
 

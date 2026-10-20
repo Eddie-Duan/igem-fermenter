@@ -30,6 +30,10 @@ class SimulatedSensorSource implements SensorSource {
   static const double _growthEndHour = 9.0;
   static const double _plateauEndHour = 11.0;
   static const double _peakOd = 1.25;
+
+  /// 裂解期衰减速率。须让 OD 的下降斜率稳定越过固件判据的 −0.010 OD/min，
+  /// 且留有噪声余量，否则演示批次凑不满"连续 36 次"。
+  static const double _lysisRatePerHour = 0.9;
   static const double _floorOd = 0.05;
   static const double _heatingRatePerHour = 3.0;
   static const double _coolingRatePerHour = 1.5;
@@ -63,7 +67,7 @@ class SimulatedSensorSource implements SensorSource {
     }
     if (t <= _plateauEndHour) return _peakOd;
     final lysis = t - _plateauEndHour;
-    return _peakOd * math.exp(-0.22 * lysis) + _floorOd;
+    return _peakOd * math.exp(-_lysisRatePerHour * lysis) + _floorOd;
   }
 
   /// 基础 pH 曲线：增殖期缓慢产酸下降；裂解期回升。
