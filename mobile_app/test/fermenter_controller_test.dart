@@ -1,10 +1,12 @@
 import 'dart:io';
+import 'dart:math';
 
 import 'package:fermenter_app/database/fermenter_repository.dart';
 import 'package:fermenter_app/database/sqlite_fermenter_repository.dart';
 import 'package:fermenter_app/models/control_state.dart';
 import 'package:fermenter_app/models/fermentation_project.dart';
 import 'package:fermenter_app/services/fermenter_controller.dart';
+import 'package:fermenter_app/services/simulated_sensor_source.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
@@ -16,8 +18,16 @@ void main() {
           factory: databaseFactoryFfiNoIsolate,
           path: path ?? inMemoryDatabasePath);
 
-  FermenterController make(FermenterRepository repo) =>
-      FermenterController(repository: repo, clock: () => DateTime(2026, 1, 1));
+  FermenterController make(FermenterRepository repo) => FermenterController(
+    repository: repo,
+    clock: () => DateTime(2026, 1, 1),
+    sourceBuilder: (_, last) => SimulatedSensorSource(
+      random: Random(7),
+      initialTemperatureC: last?.temperatureC,
+      initialPh: last?.ph,
+      initialOd: last?.od,
+    ),
+  );
 
   test('projects and readings persist across reopen', () async {
     final dir = await Directory.systemTemp.createTemp('fermenter-reopen-');
@@ -78,7 +88,7 @@ void main() {
     expect(project.id, id);
     expect(controller.openProject?.id, id);
     expect(project.status, FermenterStatus.harvest);
-    expect(project.peakOd, closeTo(1.25, 0.05));
+    expect(project.peakOd, closeTo(1.25, 0.005));
     // 收获信号应在裂解开始（11h）后不久出现。
     expect(project.harvestAtSeconds, isNotNull);
     expect(project.harvestAtSeconds! / 3600, inInclusiveRange(11.0, 13.0));
