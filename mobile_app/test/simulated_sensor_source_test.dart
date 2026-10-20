@@ -16,6 +16,27 @@ void main() {
         SimulatedSensorSource.odAt(18), lessThan(SimulatedSensorSource.odAt(12)));
   });
 
+  test('lysis starts continuously at the plateau value', () {
+    final atBoundary = SimulatedSensorSource.odAt(11);
+    final justBefore = SimulatedSensorSource.odAt(11 - 1e-6);
+    final justAfter = SimulatedSensorSource.odAt(11 + 1e-6);
+
+    expect(justBefore, closeTo(atBoundary, 1e-5));
+    expect(justAfter, closeTo(atBoundary, 1e-5));
+    expect(justAfter, lessThan(atBoundary));
+  });
+
+  test('lysis declines toward its floor without a second peak', () {
+    var previous = SimulatedSensorSource.odAt(11);
+    for (final hour in [11.001, 11.1, 12.0, 16.0, 20.0, 100.0]) {
+      final current = SimulatedSensorSource.odAt(hour);
+      expect(current, lessThanOrEqualTo(previous));
+      expect(current, greaterThanOrEqualTo(0.05));
+      previous = current;
+    }
+    expect(previous, closeTo(0.05, 1e-9));
+  });
+
   test('pH drifts down during growth then recovers slightly', () {
     expect(SimulatedSensorSource.phAt(0), closeTo(7.0, 1e-9));
     expect(

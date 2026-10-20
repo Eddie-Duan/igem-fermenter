@@ -67,7 +67,8 @@ class SimulatedSensorSource implements SensorSource {
     }
     if (t <= _plateauEndHour) return _peakOd;
     final lysis = t - _plateauEndHour;
-    return _peakOd * math.exp(-_lysisRatePerHour * lysis) + _floorOd;
+    // Decay from the plateau to the floor without adding the floor to the peak.
+    return (_peakOd - _floorOd) * math.exp(-_lysisRatePerHour * lysis) + _floorOd;
   }
 
   /// 基础 pH 曲线：增殖期缓慢产酸下降；裂解期回升。
