@@ -154,7 +154,8 @@ class BleDeviceManager extends ChangeNotifier {
     try {
       // 先打开批次：同步要读本地已有的最大序号，而且曲线会立刻刷新。
       await controller.selectProject(projectId);
-      controller.bindDevice(projectId, connectedDevice?.displayName ?? 'ESP32-S3');
+      await controller.bindDevice(
+          projectId, connectedDevice?.displayName ?? 'ESP32-S3');
       // 绑定关系立刻生效（设备批次不再跑仿真）；同步失败也保持绑定，
       // 否则一次超时就会让真实批次退回仿真、往真数据里掺假点。
       boundProjectId = projectId;
@@ -210,7 +211,7 @@ class BleDeviceManager extends ChangeNotifier {
   Future<void> unbind() async {
     final projectId = boundProjectId;
     await _detach();
-    if (projectId != null) controller.unbindDevice(projectId);
+    if (projectId != null) await controller.unbindDevice(projectId);
     notifyListeners();
   }
 

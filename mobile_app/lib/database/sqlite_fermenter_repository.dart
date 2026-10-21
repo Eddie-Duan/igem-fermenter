@@ -23,10 +23,17 @@ class SqliteFermenterRepository implements FermenterRepository {
     final db = await dbFactory.openDatabase(
       dbPath,
       options: OpenDatabaseOptions(
-        version: 1,
+        version: 2,
         singleInstance: false,
         onConfigure: (db) async {
           await db.execute('PRAGMA synchronous = FULL');
+        },
+        onUpgrade: (db, oldVersion, newVersion) async {
+          // v2：记录批次由哪台设备供数（null = 演示批次）。
+          if (oldVersion < 2) {
+            await db.execute(
+                'ALTER TABLE projects ADD COLUMN device_label TEXT');
+          }
         },
         onCreate: (db, version) async {
           await db.execute('''CREATE TABLE projects (
@@ -41,6 +48,7 @@ class SqliteFermenterRepository implements FermenterRepository {
             stirrer_on INTEGER NOT NULL,
             stirrer_rpm INTEGER NOT NULL,
             heater_on INTEGER NOT NULL,
+            device_label TEXT,
             peak_od REAL,
             harvest_at_seconds INTEGER,
             last_temp_c REAL,

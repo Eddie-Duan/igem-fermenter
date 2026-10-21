@@ -35,6 +35,7 @@ class FermentationProject {
     this.stirrerOn = false,
     this.stirrerRpm = 200,
     this.heaterOn = false,
+    this.deviceLabel,
     this.peakOd,
     this.harvestAtSeconds,
     this.lastTemperatureC,
@@ -63,6 +64,11 @@ class FermentationProject {
   final int stirrerRpm; // 100–300 rpm
   final bool heaterOn;
 
+  /// 供数设备的名字；`null` 表示演示批次（无硬件、由仿真器产生读数）。
+  ///
+  /// 持久化保存，App 重启后仍能判断"这个批次不该跑仿真"。
+  final String? deviceLabel;
+
   // -- 收获检测记录 --
   final double? peakOd;
   final int? harvestAtSeconds; // simSeconds 时刻触发收获
@@ -90,6 +96,7 @@ class FermentationProject {
     bool? stirrerOn,
     int? stirrerRpm,
     bool? heaterOn,
+    String? Function()? deviceLabel,
     double? Function()? peakOd,
     int? Function()? harvestAtSeconds,
     double? lastTemperatureC,
@@ -110,6 +117,7 @@ class FermentationProject {
         stirrerOn: stirrerOn ?? this.stirrerOn,
         stirrerRpm: stirrerRpm ?? this.stirrerRpm,
         heaterOn: heaterOn ?? this.heaterOn,
+        deviceLabel: deviceLabel != null ? deviceLabel() : this.deviceLabel,
         peakOd: peakOd != null ? peakOd() : this.peakOd,
         harvestAtSeconds:
             harvestAtSeconds != null ? harvestAtSeconds() : this.harvestAtSeconds,
@@ -130,6 +138,7 @@ class FermentationProject {
         'stirrer_on': stirrerOn ? 1 : 0,
         'stirrer_rpm': stirrerRpm,
         'heater_on': heaterOn ? 1 : 0,
+        'device_label': deviceLabel,
         'peak_od': peakOd,
         'harvest_at_seconds': harvestAtSeconds,
         'last_temp_c': lastTemperatureC,
@@ -152,6 +161,7 @@ class FermentationProject {
         stirrerOn: (row['stirrer_on'] as int) != 0,
         stirrerRpm: row['stirrer_rpm'] as int,
         heaterOn: (row['heater_on'] as int) != 0,
+        deviceLabel: row['device_label'] as String?,
         peakOd: (row['peak_od'] as num?)?.toDouble(),
         harvestAtSeconds: row['harvest_at_seconds'] as int?,
         lastTemperatureC: (row['last_temp_c'] as num?)?.toDouble(),

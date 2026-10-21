@@ -76,6 +76,38 @@ void main() {
     expect(await repo.countReadings(controller.openProject!.id), 5);
   });
 
+  test('device batches never simulate and keep the binding after reopen',
+      () async {
+    final dir = await Directory.systemTemp.createTemp('fermenter-device-');
+    addTearDown(() => dir.delete(recursive: true));
+    final path = '${dir.path}/fermenter.db';
+
+    var repo = await open(path);
+    var controller = make(repo);
+    final id = await controller.createProject(
+        const ProjectDraft(name: 'Batch D', targetTempC: 30, timeScale: 120),
+        deviceLabel: 'FeroEase');
+    expect(controller.isDeviceBound(id), isTrue);
+
+    for (var i = 0; i < 3; i++) {
+      await controller.advanceSimulation();
+    }
+    expect(controller.openReadings, isEmpty);
+    controller.dispose();
+    await repo.close();
+
+    repo = await open(path);
+    controller = make(repo);
+    addTearDown(controller.dispose);
+    addTearDown(repo.close);
+    await controller.refresh();
+
+    // 绑定关系落库：重启后仍然是设备批次，不会悄悄退回仿真。
+    expect(controller.isDeviceBound(id), isTrue);
+    await controller.advanceSimulation();
+    expect(await repo.countReadings(id), 0);
+  });
+
   test('loadSampleBatch records a whole cycle and flags harvest', () async {
     final repo = await open();
     final controller = make(repo);

@@ -554,8 +554,7 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
             ),
             const SizedBox(height: 4),
             Text(
-              'X axis: simulated hours since start. '
-              'Manual readings are included too.',
+              'X axis: hours since start. Manual readings are included too.',
               style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant),
             ),
           ],
@@ -594,7 +593,8 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
                       style: Theme.of(context).textTheme.titleSmall),
                   const Spacer(),
                   Text(
-                    'Simulated device',
+                    project.deviceLabel ?? 'Demo batch',
+                    overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                         fontSize: 11,
                         color: Theme.of(context).colorScheme.onSurfaceVariant),
@@ -754,7 +754,8 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 24),
                 child: Center(
-                  child: Text('No readings yet — the simulator runs continuously.',
+                  child: Text(
+                      'No readings yet — connect the device and sync to import its log.',
                       style: TextStyle(color: scheme.onSurfaceVariant)),
                 ),
               )

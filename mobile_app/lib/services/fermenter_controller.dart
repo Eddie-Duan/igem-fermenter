@@ -103,22 +103,36 @@ class FermenterController extends ChangeNotifier implements BleReadingSink {
   /// 绑定的设备名，未绑定时为 null。
   String? boundDeviceLabel(int projectId) => _deviceLabels[projectId];
 
-  /// 把批次绑定到设备：停掉本地仿真，之后数据只从设备来。
-  void bindDevice(int projectId, String deviceLabel) {
+  /// 把批次绑定到设备：停掉本地仿真，之后数据只从设备来。绑定会写库，
+  /// 所以 App 重启后这个批次仍然不会退回仿真。
+  Future<void> bindDevice(int projectId, String deviceLabel) async {
     if (_deviceLabels[projectId] == deviceLabel) return;
     _deviceLabels[projectId] = deviceLabel;
     // 丢掉仿真源：设备批次的时间轴不由本地时钟推进。
     _sources.remove(projectId);
     notifyListeners();
+    await _persistDeviceLabel(projectId, deviceLabel);
   }
 
   /// 解除绑定，回到本地仿真。设备侧未同步的数据仍在 flash 上，不会丢。
-  void unbindDevice(int projectId) {
+  Future<void> unbindDevice(int projectId) async {
     if (_deviceLabels.remove(projectId) == null) return;
     _sources.remove(projectId);
     _clockSeconds.remove(projectId);
     _lastSampleSeconds.remove(projectId);
     notifyListeners();
+    await _persistDeviceLabel(projectId, null);
+  }
+
+  Future<void> _persistDeviceLabel(int projectId, String? label) async {
+    final project = _projectById(projectId);
+    if (project == null || project.deviceLabel == label) return;
+    final updated = project.copyWith(
+      deviceLabel: () => label,
+      updatedAt: clock(),
+    );
+    _replaceProject(updated);
+    await repository.updateProject(updated);
   }
 
   // -- 生命周期 --
@@ -219,6 +233,13 @@ class FermenterController extends ChangeNotifier implements BleReadingSink {
       final list = await repository.listProjects();
       if (_disposed || revision != _revision) return;
       projects = list;
+      // 绑定关系以库里的 device_label 为准：重启后设备批次继续等设备，
+      // 不会偷偷退回仿真。
+      for (final project in list) {
+        final label = project.deviceLabel;
+        if (label != null) _deviceLabels[project.id] = label;
+      }
+      _deviceLabels.removeWhere((id, _) => !list.any((p) => p.id == id));
       final openId = _openProjectId;
       if (openId != null && list.any((p) => p.id == openId)) {
         await _loadReadings(openId, revision);
@@ -258,7 +279,9 @@ class FermenterController extends ChangeNotifier implements BleReadingSink {
 
   // -- 操作 --
 
-  Future<void> createProject(ProjectDraft draft) async {
+  /// 新建批次。传 [deviceLabel] 表示该批次从一开始就由设备供数：
+  /// 绑定关系在首批读数之前就生效，所以不会有仿真点混进真实数据。
+  Future<int> createProject(ProjectDraft draft, {String? deviceLabel}) async {
     if (draft.name.trim().isEmpty) {
       throw ArgumentError('Batch name is required');
     }
@@ -274,16 +297,22 @@ class FermenterController extends ChangeNotifier implements BleReadingSink {
       simSeconds: 0,
       createdAt: now,
       updatedAt: now,
+      deviceLabel: deviceLabel,
     );
     final id = await repository.createProject(project);
     _lastSampleSeconds[id] = 0;
     _clockSeconds[id] = 0;
     _readings[id] = [];
-    _sources[id] = _sourceBuilder(id, null);
+    if (deviceLabel == null) {
+      _sources[id] = _sourceBuilder(id, null);
+    } else {
+      _deviceLabels[id] = deviceLabel;
+    }
     _verdicts[id] = const HarvestDetector().evaluate(const []);
     await _load(++_revision);
     _openProjectId = id;
     notifyListeners();
+    return id;
   }
 
   /// 无硬件阶段的演示入口：直接生成一个已经跑完整个发酵周期的批次

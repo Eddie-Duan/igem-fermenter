@@ -1,12 +1,21 @@
 import 'package:flutter/material.dart';
 
 import '../database/fermenter_repository.dart';
+import '../services/ble_device_manager.dart';
 import '../services/fermenter_controller.dart';
 
+/// 新建批次：只在设备已连接时可用，批次创建后立即绑定设备并同步 flash 日志。
+///
+/// 这里刻意不提供仿真：没有硬件时的演示走首页的「Load sample data」。
 class NewProjectPage extends StatefulWidget {
-  const NewProjectPage({super.key, required this.controller});
+  const NewProjectPage({
+    super.key,
+    required this.controller,
+    required this.device,
+  });
 
   final FermenterController controller;
+  final BleDeviceManager device;
 
   @override
   State<NewProjectPage> createState() => _NewProjectPageState();
@@ -18,7 +27,6 @@ class _NewProjectPageState extends State<NewProjectPage> {
   final _strain = TextEditingController();
   final _note = TextEditingController();
   double _targetTempC = 30;
-  int _timeScale = 60; // 1 真实秒 = 60 仿真秒
   bool _submitting = false;
 
   @override
@@ -31,15 +39,26 @@ class _NewProjectPageState extends State<NewProjectPage> {
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
+    final device = widget.device;
+    if (!device.isConnected) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Connect FeroEase before starting a batch.')));
+      return;
+    }
     setState(() => _submitting = true);
     try {
-      await widget.controller.createProject(ProjectDraft(
-        name: _name.text,
-        strain: _strain.text.trim().isEmpty ? null : _strain.text.trim(),
-        note: _note.text.trim().isEmpty ? null : _note.text.trim(),
-        targetTempC: _targetTempC,
-        timeScale: _timeScale,
-      ));
+      final id = await widget.controller.createProject(
+        ProjectDraft(
+          name: _name.text,
+          strain: _strain.text.trim().isEmpty ? null : _strain.text.trim(),
+          note: _note.text.trim().isEmpty ? null : _note.text.trim(),
+          targetTempC: _targetTempC,
+          timeScale: 1,
+        ),
+        deviceLabel: device.connectedDevice?.displayName ?? 'FeroEase',
+      );
+      // 绑定 + 同步：绑定前不会有仿真点，同步失败也保持绑定（数据还在设备上）。
+      await device.syncToProject(id);
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
       if (mounted) {
@@ -53,7 +72,6 @@ class _NewProjectPageState extends State<NewProjectPage> {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     return Scaffold(
       appBar: AppBar(title: const Text('New batch')),
       body: SafeArea(
@@ -123,29 +141,10 @@ class _NewProjectPageState extends State<NewProjectPage> {
                     ],
                   ),
                   const SizedBox(height: 16),
-                  Text('Simulation speed',
+                  Text('Device',
                       style: Theme.of(context).textTheme.titleSmall),
                   const SizedBox(height: 8),
-                  SegmentedButton<int>(
-                    segments: const [
-                      ButtonSegment(value: 30, label: Text('30×')),
-                      ButtonSegment(value: 60, label: Text('60×')),
-                      ButtonSegment(value: 120, label: Text('120×')),
-                    ],
-                    selected: {_timeScale},
-                    onSelectionChanged: (value) =>
-                        setState(() => _timeScale = value.single),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    'Simulated time runs $_timeScale× faster than real time, '
-                    'so a full 18 h run takes about '
-                    '${(18 * 3600 / _timeScale).round() ~/ 60} min.',
-                    style: Theme.of(context)
-                        .textTheme
-                        .bodySmall
-                        ?.copyWith(color: scheme.onSurfaceVariant),
-                  ),
+                  _deviceCard(),
                   const SizedBox(height: 24),
                   _infoCard(),
                   const SizedBox(height: 28),
@@ -163,8 +162,15 @@ class _NewProjectPageState extends State<NewProjectPage> {
                       Expanded(
                         child: FilledButton.icon(
                           onPressed: _submitting ? null : _submit,
-                          icon: const Icon(Icons.play_arrow_rounded),
-                          label: const Text('Start batch'),
+                          icon: _submitting
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                      strokeWidth: 2))
+                              : const Icon(Icons.play_arrow_rounded),
+                          label: Text(
+                              _submitting ? 'Syncing…' : 'Start batch'),
                         ),
                       ),
                     ],
@@ -174,6 +180,38 @@ class _NewProjectPageState extends State<NewProjectPage> {
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _deviceCard() {
+    final device = widget.device;
+    final scheme = Theme.of(context).colorScheme;
+    final name = device.connectedDevice?.displayName;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          Icon(device.isConnected
+              ? Icons.bluetooth_connected
+              : Icons.bluetooth_disabled),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              device.isConnected
+                  ? 'Readings come from ${name ?? 'the connected device'}. '
+                      'Records already in its flash log are pulled in now; '
+                      'new samples keep arriving while the app is open.'
+                  : 'No device connected. Connect FeroEase from the device '
+                      'page before starting a batch.',
+              style: TextStyle(fontSize: 12.5, color: scheme.onSurfaceVariant),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -196,8 +234,8 @@ class _NewProjectPageState extends State<NewProjectPage> {
               'Two-phase fermentation: turbidity (OD600) rises while the cells '
               'grow, then falls sharply once they lyse. The app watches for '
               'that sustained drop and raises the harvest alert automatically. '
-              'Stirring and heating are simulated until the hardware is '
-              'connected.',
+              'Every point on the curve is measured by the device — nothing is '
+              'simulated here.',
               style: TextStyle(
                   fontSize: 12.5, color: scheme.onTertiaryContainer),
             ),
