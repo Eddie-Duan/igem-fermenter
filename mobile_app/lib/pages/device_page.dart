@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../ble/ble_client.dart';
 import '../services/ble_device_manager.dart';
 import '../services/fermenter_controller.dart';
+import '../services/wifi_device_client.dart';
 import '../utils/format.dart';
 
 /// 连接 ESP32-S3：扫描 → 连接 → 选批次同步 → 下发控制。
@@ -20,6 +23,17 @@ class DevicePage extends StatefulWidget {
 
 class _DevicePageState extends State<DevicePage> {
   int? _selectedProjectId;
+  final _wifiClient = WifiDeviceClient();
+  final _wifiAddress = TextEditingController(text: '192.168.4.1');
+  final _wifiUser = TextEditingController(text: 'admin');
+  final _wifiPassword = TextEditingController();
+  Map<String, dynamic>? _wifiStatus;
+  bool _wifiBusy = false;
+  String? _wifiError;
+  Timer? _wifiPoller;
+  bool _wifiPolling = false;
+  double _wifiTarget = 30;
+  bool _wifiHeater = false;
 
   BleDeviceManager get manager => widget.manager;
 
@@ -38,6 +52,8 @@ class _DevicePageState extends State<DevicePage> {
                 padding: const EdgeInsets.all(20),
                 children: [
                   _statusCard(),
+                  const SizedBox(height: 16),
+                  _wifiCard(),
                   const SizedBox(height: 16),
                   if (!manager.isConnected) ...[
                     _scanCard(),
@@ -64,6 +80,93 @@ class _DevicePageState extends State<DevicePage> {
         ),
       ),
     );
+  }
+
+  Widget _wifiCard() {
+    final scheme = Theme.of(context).colorScheme;
+    final status = _wifiStatus;
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('Connect over Wi-Fi', style: Theme.of(context).textTheme.titleSmall),
+          const SizedBox(height: 6),
+          Text('First connect this phone to the ESP32 hotspot in Wi-Fi settings or put both on the same router. The hotspot address is 192.168.4.1; the password is printed in the device serial log.',
+              style: TextStyle(fontSize: 12.5, color: scheme.onSurfaceVariant)),
+          const SizedBox(height: 10),
+          TextField(controller: _wifiAddress, decoration: const InputDecoration(labelText: 'Device IP address', hintText: '192.168.4.1', border: OutlineInputBorder(), isDense: true)),
+          const SizedBox(height: 8),
+          Row(children: [
+            Expanded(child: TextField(controller: _wifiUser, decoration: const InputDecoration(labelText: 'User', border: OutlineInputBorder(), isDense: true))),
+            const SizedBox(width: 8),
+            Expanded(child: TextField(controller: _wifiPassword, obscureText: true, decoration: const InputDecoration(labelText: 'Web password', border: OutlineInputBorder(), isDense: true))),
+          ]),
+          const SizedBox(height: 10),
+          FilledButton.icon(onPressed: _wifiBusy ? null : _connectWifi,
+            icon: _wifiBusy ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.wifi, size: 18),
+            label: Text(_wifiStatus == null ? 'Connect' : 'Refresh status')),
+          if (_wifiError != null) Padding(padding: const EdgeInsets.only(top: 8), child: Text(_wifiError!, style: TextStyle(color: scheme.error))),
+          if (status != null) ...[
+            const Divider(height: 22),
+            Text('Wi-Fi connected · ${status['staIp'] ?? status['apIp'] ?? _wifiAddress.text}', style: TextStyle(color: scheme.primary, fontWeight: FontWeight.w600)),
+            const SizedBox(height: 6),
+            Text('Temperature ${status['tempC'] ?? '—'} °C · pH ${status['ph'] ?? '—'} · optical ${status['odProxy'] ?? '—'}'),
+            Text('Heater ${status['heaterOn'] == true ? 'on' : 'off'} · alarm ${status['alarm'] == true ? 'active' : 'clear'}'),
+            const SizedBox(height: 8),
+            Row(children: [
+              SizedBox(width: 120, child: TextField(key: ValueKey(_wifiTarget), keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Target °C', border: OutlineInputBorder(), isDense: true), onChanged: (v) => _wifiTarget = double.tryParse(v) ?? _wifiTarget)),
+              const SizedBox(width: 10),
+              Expanded(child: SwitchListTile(contentPadding: EdgeInsets.zero, title: const Text('Auto heat'), value: _wifiHeater, onChanged: (v) => setState(() => _wifiHeater = v))),
+              IconButton(tooltip: 'Send Wi-Fi controls', onPressed: _wifiBusy ? null : _sendWifiControl, icon: const Icon(Icons.send)),
+            ]),
+          ],
+        ]),
+      ),
+    );
+  }
+
+  Future<void> _connectWifi() async {
+    setState(() { _wifiBusy = true; _wifiError = null; });
+    try {
+      final status = await _wifiClient.status(address: _wifiAddress.text, username: _wifiUser.text, password: _wifiPassword.text);
+      if (!mounted) return;
+      setState(() { _wifiStatus = status; _wifiTarget = (status['targetTempC'] as num?)?.toDouble() ?? 30; _wifiHeater = status['heaterEnabled'] == true; });
+      _wifiPoller ??= Timer.periodic(const Duration(seconds: 3), (_) => _pollWifi());
+    } catch (e) { if (mounted) setState(() => _wifiError = e.toString()); }
+    finally { if (mounted) setState(() => _wifiBusy = false); }
+  }
+
+  Future<void> _pollWifi() async {
+    if (_wifiBusy || _wifiPolling || !mounted) return;
+    _wifiPolling = true;
+    try {
+      final status = await _wifiClient.status(address: _wifiAddress.text, username: _wifiUser.text, password: _wifiPassword.text);
+      if (mounted) setState(() => _wifiStatus = status);
+    } catch (e) {
+      if (mounted) setState(() { _wifiPoller?.cancel(); _wifiPoller = null; _wifiStatus = null; _wifiError = e.toString(); });
+    } finally {
+      _wifiPolling = false;
+    }
+  }
+
+  Future<void> _sendWifiControl() async {
+    setState(() { _wifiBusy = true; _wifiError = null; });
+    try {
+      await _wifiClient.setControl(address: _wifiAddress.text, username: _wifiUser.text, password: _wifiPassword.text, targetTempC: _wifiTarget, heaterEnabled: _wifiHeater);
+      await _connectWifi();
+    } catch (e) { if (mounted) setState(() => _wifiError = e.toString()); }
+    finally { if (mounted) setState(() => _wifiBusy = false); }
+  }
+
+  @override
+  void dispose() {
+    _wifiPoller?.cancel();
+    _wifiClient.close();
+    _wifiAddress.dispose();
+    _wifiUser.dispose();
+    _wifiPassword.dispose();
+    super.dispose();
   }
 
   // -- 连接状态 --

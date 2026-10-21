@@ -26,10 +26,11 @@
         android:name="android.hardware.bluetooth_le"
         android:required="false" />
 
+    <!-- The ESP32-S3 serves its local authenticated API over HTTP. -->
     <application
         android:label="FeroEase"
         android:allowBackup="false"
-        android:usesCleartextTraffic="false"
+        android:usesCleartextTraffic="true"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

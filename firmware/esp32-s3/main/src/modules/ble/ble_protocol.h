@@ -1,9 +1,5 @@
-// 与 App 之间的 BLE 协议：UUID、20 字节记录、指令、状态帧、CRC。
-//
-// 这个头文件是**唯一的字节级定义**，和下面两处必须一字不差：
-//   - App 侧  mobile_app/lib/ble/ble_protocol.dart
-//   - 文档    docs/ble-gatt.md / docs/ble-data-format.md
-// 三处任一改动都要同步另外两处。
+// BLE v1 wire definitions matching mobile_app/lib/ble/ble_protocol.dart.
+// Integration notes: ../APP_INTEGRATION.md. Keep UUIDs and frame layout stable.
 #pragma once
 
 #include <stdint.h>
@@ -26,7 +22,7 @@
 #define RECORD_MAGIC 0xA5
 #define RECORD_VERSION 0x01
 
-// 采样周期（秒）。App 侧时间轴按 seq × 该值换算，
+// BLE 记录周期（秒）；本地传感器仍每5秒采样。App时间轴按seq × 此值换算，
 // 改这里必须同时改 mobile_app/lib/services/fermenter_controller.dart
 // 的 deviceSampleIntervalSeconds。
 #define SAMPLE_INTERVAL_S 120
@@ -34,8 +30,8 @@
 // flash 上最多保留多少条记录（20 B/条 → 2000 条约 40 KB）。
 #define LOG_CAPACITY 2000
 
-// 固件版本 1.0.0，对应 DeviceInfo 的第一个 uint32。改协议就要升它。
-#define FIRMWARE_VERSION 0x00010000u
+// 固件版本1.1.0；DeviceInfo首个u32，记录格式仍为v1。
+#define FIRMWARE_VERSION 0x00010100u
 
 // ===================== 手机 → 设备（SyncControl）=====================
 #define CMD_SYNC_REQ 0x01  // 0x01 + next_seq(u32)：从 next_seq 开始（含）回发
@@ -109,7 +105,7 @@ struct LogRecord
     uint32_t timestamp; // Unix 秒；未校时写 0
     int16_t tempC_x100; // 温度 ×100
     int16_t ph_x100;    // pH ×100
-    int16_t od_x1000;   // OD600 ×1000（负值按 0 处理）
+    int16_t od_x1000;   // 相对光衰减 ×1000（兼容 App od 字段，负值按 0 处理）
     uint16_t batteryMv; // 电池电压 mV
 };
 
