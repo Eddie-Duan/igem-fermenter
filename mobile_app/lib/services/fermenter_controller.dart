@@ -3,7 +3,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 
-import '../ble/ble_sync_service.dart';
+import '../device/device_sync_service.dart';
 import '../database/fermenter_repository.dart';
 import '../models/control_state.dart';
 import '../models/fermentation_project.dart';
@@ -16,9 +16,9 @@ import 'simulated_sensor_source.dart';
 ///
 /// 数据有两个来源，但落库、收获检测、统计和界面完全共用一条路径：
 /// - 没有硬件（或批次未绑定设备）：[SimulatedSensorSource] 按本地时钟推进；
-/// - 已绑定 ESP32-S3：读数由设备推送（[BleSyncService] 校验、
+/// - 已绑定 ESP32-S3：读数由设备推送（[DeviceSyncService] 校验、
 ///   经 [storeDeviceReadings] 落库），本地仿真对该批次停止。
-class FermenterController extends ChangeNotifier implements BleReadingSink {
+class FermenterController extends ChangeNotifier implements DeviceReadingSink {
   FermenterController({
     required this.repository,
     SensorSource Function(int projectId, SensorReading? last)? sourceBuilder,
@@ -521,7 +521,7 @@ class FermenterController extends ChangeNotifier implements BleReadingSink {
     notifyListeners();
   }
 
-  // -- 设备读数（BleReadingSink）--
+  // -- 设备读数（DeviceReadingSink）--
 
   /// 设备同步的起点：本地已有的下一条设备序号（空批次为 0）。
   @override
@@ -531,7 +531,7 @@ class FermenterController extends ChangeNotifier implements BleReadingSink {
     return _deviceCursor(await repository.readings(projectId));
   }
 
-  /// 落库设备推送/同步的读数。返回后 [BleSyncService] 才会回 ACK。
+  /// 落库设备推送/同步的读数。返回后 [DeviceSyncService] 才会让设备回收日志。
   ///
   /// 与仿真路径分开：这里不推进本地时钟，时间轴直接取设备序号。
   @override
@@ -544,7 +544,7 @@ class FermenterController extends ChangeNotifier implements BleReadingSink {
     final existing = _readings[projectId] ?? const <SensorReading>[];
     final known = <int>{
       for (final reading in existing)
-        if (reading.source == 'ble') reading.seq,
+        if (reading.isDeviceReading) reading.seq,
     };
     final fresh = <SensorReading>[];
     for (final reading in readings) {
@@ -607,7 +607,7 @@ class FermenterController extends ChangeNotifier implements BleReadingSink {
   static int _deviceCursor(List<SensorReading> readings) {
     final seqs = <int>{
       for (final reading in readings)
-        if (reading.source == 'ble') reading.seq,
+        if (reading.isDeviceReading) reading.seq,
     };
     if (seqs.isEmpty) return 0;
     var cursor = seqs.reduce(math.min);

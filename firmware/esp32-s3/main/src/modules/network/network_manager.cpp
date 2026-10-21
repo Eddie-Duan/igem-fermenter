@@ -5,12 +5,18 @@
 #include <esp_system.h>
 #include <stdlib.h>
 #include <math.h>
+#include <time.h>
+#include <sys/time.h>
 #include "../../shared/app_state.h"
+#include "../../config/mqtt_config.h"
+#include "../../config/fermenter_config.h"
 #include "./network_manager.h"
 #include "../control/control_manager.h"
 #include "../sensors/sensor_manager.h"
 #include "../mqtt/mqtt_manager.h"
 #include "../sensors/ph_sensor.h"
+#include "../log/log_store.h"
+#include "../log/record_format.h"
 
 namespace {
 WebServer server(80);
@@ -18,6 +24,7 @@ Preferences preferences;
 String webPassword;
 String setupApSsid;
 bool stationWasConnected = false;
+bool ntpStarted = false;
 
 const char WEB_PAGE[] PROGMEM = R"rawliteral(
 <!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -84,6 +91,33 @@ String jsonFloat(float value, unsigned digits = 3) {
   return isfinite(value) ? String(value, digits) : String("null");
 }
 
+/// 解析表单里的无符号整数；缺省/非法/负数一律返回 false。
+bool argumentUint(const char *name, uint32_t &value) {
+  if (!server.hasArg(name)) return false;
+  const String text = server.arg(name);
+  if (text.length() == 0 || text.length() > 10) return false;
+  char *end = nullptr;
+  const unsigned long parsed = strtoul(text.c_str(), &end, 10);
+  if (end == text.c_str() || *end != '\0') return false;
+  value = static_cast<uint32_t>(parsed);
+  return true;
+}
+
+/// 协议版本：App 用它确认固件提供 /api/readings 等同步接口。
+constexpr uint8_t API_VERSION = 1;
+
+String firmwareLabel() {
+  return String((FIRMWARE_VERSION >> 16) & 0xFF) + "." +
+         String((FIRMWARE_VERSION >> 8) & 0xFF) + "." +
+         String(FIRMWARE_VERSION & 0xFF);
+}
+
+String deviceId() {
+  String mac = WiFi.macAddress();
+  mac.replace(":", "");
+  return mac;
+}
+
 void handleStatus() {
   if (!authorize()) return;
   String body = "{";
@@ -113,6 +147,19 @@ void handleStatus() {
   body += ",\"opticalValid\":" + String(gState.opticalValid ? "true" : "false");
   body += ",\"calibrationRunning\":" + String(gState.calibrationRunning ? "true" : "false");
   body += ",\"calibrationSamples\":" + String(gState.calibrationSamples);
+  body += ",\"stirrerSupported\":" + String(Controller::stirrerSupported() ? "true" : "false");
+  body += ",\"stirrerOn\":" + String(Controller::stirrerOn() ? "true" : "false");
+  body += ",\"stirrerRpm\":" + String(Controller::stirrerRpm());
+  // 日志游标：App 据此判断还能同步哪一段序号。
+  body += ",\"oldestSeq\":" + String(LogStore::oldest());
+  body += ",\"nextSeq\":" + String(LogStore::next());
+  body += ",\"recordCount\":" + String(LogStore::count());
+  body += ",\"logCapacity\":" + String(LOG_CAPACITY);
+  body += ",\"logReady\":" + String(LogStore::ready() ? "true" : "false");
+  body += ",\"sampleIntervalS\":" + String(Config::RECORD_PERIOD_MS / 1000);
+  body += ",\"apiVersion\":" + String(API_VERSION);
+  body += ",\"firmware\":\"" + firmwareLabel() + "\"";
+  body += ",\"deviceId\":\"" + deviceId() + "\"";
   body += ",\"mqttConnected\":" + String(MqttManager::connected() ? "true" : "false");
   body += ",\"wifiConnected\":" + String(WiFi.status() == WL_CONNECTED ? "true" : "false");
   body += ",\"staIp\":\"" + WiFi.localIP().toString() + "\"";
@@ -136,7 +183,34 @@ void handleControl() {
     return;
   }
   Controller::setHeaterEnabled(server.arg("heater") == "1");
-  sendJson(200, "{\"message\":\"温控设置已保存\"}");
+
+  String warning;
+  // 搅拌是可选字段：不传就不改动当前状态（网页的温控表单就不带它）。
+  if (server.hasArg("stirrer")) {
+    const bool wantStirrer = server.arg("stirrer") == "1";
+    uint32_t rpm = 0;
+    if (server.hasArg("rpm") && !argumentUint("rpm", rpm)) {
+      sendJson(400, "{\"error\":\"转速格式无效\"}");
+      return;
+    }
+    if (wantStirrer && !Controller::stirrerSupported()) {
+      warning = "固件未启用搅拌输出（fermenter_config.h 的 STIRRER_ENABLED），已保存其余设置";
+      Controller::setStirrer(false, 0);
+    } else if (wantStirrer && (rpm < Config::STIRRER_MIN_RPM || rpm > Config::STIRRER_MAX_RPM)) {
+      sendJson(400, "{\"error\":\"转速须在 100–300 rpm 之间\"}");
+      return;
+    } else {
+      Controller::setStirrer(wantStirrer, static_cast<uint16_t>(rpm));
+    }
+  }
+
+  String body = "{\"message\":\"控制设置已保存\"";
+  body += ",\"stirrerSupported\":" + String(Controller::stirrerSupported() ? "true" : "false");
+  body += ",\"stirrerOn\":" + String(Controller::stirrerOn() ? "true" : "false");
+  body += ",\"stirrerRpm\":" + String(Controller::stirrerRpm());
+  if (warning.length() > 0) body += ",\"warning\":\"" + warning + "\"";
+  body += "}";
+  sendJson(200, body);
 }
 
 void handleReset() {
@@ -181,6 +255,95 @@ void handlePhReset() {
   sendJson(ok ? 200 : 500, String("{\"") + (ok ? "message" : "error") + "\":\"" + message + "\"}");
 }
 
+/// 按序号读取 flash 日志（含端点 since）。
+/// 返回同一条记录解码后的 JSON 字段，App 用 seq 去重。
+void handleReadings() {
+  if (!authorize()) return;
+  if (!LogStore::ready()) {
+    sendJson(503, "{\"error\":\"flash 日志不可用，请检查串口或执行 LOG_FORMAT\"}");
+    return;
+  }
+  const uint32_t oldest = LogStore::oldest();
+  const uint32_t next = LogStore::next();
+  uint32_t since = oldest;
+  uint32_t requested = 0;
+  if (argumentUint("since", requested)) since = requested;
+  uint32_t limit = 60;
+  if (argumentUint("limit", requested)) limit = requested;
+  if (limit == 0) limit = 1;
+  if (limit > 200) limit = 200; // 一次最多 200 条，避免单个响应过大
+  if (since < oldest) since = oldest;
+  if (since > next) since = next;
+  const uint32_t available = next - since;
+  const uint32_t take = available < limit ? available : limit;
+
+  String body;
+  body.reserve(take * 96 + 128);
+  body += "{\"oldest\":" + String(oldest);
+  body += ",\"next\":" + String(next);
+  body += ",\"count\":" + String(next - oldest);
+  body += ",\"since\":" + String(since);
+  body += ",\"records\":[";
+  LogRecord record;
+  uint32_t written = 0;
+  for (uint32_t seq = since; seq < next && written < take; ++seq) {
+    if (!LogStore::read(seq, record)) break;
+    if (written) body += ',';
+    body += "{\"seq\":" + String(record.seq);
+    body += ",\"timestamp\":" + String(record.timestamp);
+    body += ",\"tempC\":" + String(record.tempC_x100 / 100.0f, 2);
+    body += ",\"ph\":" + String(record.ph_x100 / 100.0f, 2);
+    body += ",\"od\":" + String(record.od_x1000 / 1000.0f, 3);
+    body += ",\"batteryMv\":" + String(record.batteryMv) + "}";
+    ++written;
+  }
+  body += "],\"returned\":" + String(written);
+  body += ",\"hasMore\":" + String(since + written < next ? "true" : "false");
+  body += "}";
+  sendJson(200, body);
+}
+
+/// App 确认已落库到 last 后回收该序号及以前的记录。
+void handleReadingsCommit() {
+  if (!authorize()) return;
+  uint32_t last = 0;
+  if (!argumentUint("last", last)) {
+    sendJson(400, "{\"error\":\"缺少 last 参数\"}");
+    return;
+  }
+  if (!LogStore::ready()) {
+    sendJson(503, "{\"error\":\"flash 日志不可用\"}");
+    return;
+  }
+  if (!LogStore::reclaim(last)) {
+    sendJson(409, "{\"error\":\"回收失败：序号超出范围或日志不可写\"}");
+    return;
+  }
+  String body = "{\"message\":\"已回收\"";
+  body += ",\"oldest\":" + String(LogStore::oldest());
+  body += ",\"next\":" + String(LogStore::next());
+  body += ",\"count\":" + String(LogStore::count()) + "}";
+  sendJson(200, body);
+}
+
+/// 手机用自身时钟校准设备（HTTP 版 SET_TIME）。
+void handleTime() {
+  if (!authorize()) return;
+  uint32_t now = 0;
+  if (!argumentUint("now", now) || now < 1704067200UL) {
+    sendJson(400, "{\"error\":\"now 必须是当前 Unix 秒\"}");
+    return;
+  }
+  timeval tv{};
+  tv.tv_sec = static_cast<time_t>(now);
+  tv.tv_usec = 0;
+  if (settimeofday(&tv, nullptr) != 0) {
+    sendJson(500, "{\"error\":\"设备拒绝设置时间\"}");
+    return;
+  }
+  sendJson(200, "{\"message\":\"设备时间已校准\",\"unix\":" + String(now) + "}");
+}
+
 void handleWifiConfig() {
   if (!authorize()) return;
   if (!server.hasArg("ssid") || !server.hasArg("password")) {
@@ -211,6 +374,12 @@ void reportStationState() {
     Serial.println("# Router Wi-Fi disconnected; setup hotspot is still available");
   }
   stationWasConnected = connected;
+  // 时间戳来自 SNTP：连着路由器时自动校准，手机通过 /api/time 仍可覆盖。
+  if (connected && !ntpStarted) {
+    configTime(0, 0, MqttConfig::NTP_SERVER_1, MqttConfig::NTP_SERVER_2);
+    ntpStarted = true;
+    Serial.println("# NTP time sync started");
+  }
 }
 }
 
@@ -248,6 +417,9 @@ void begin() {
     server.send_P(200, "text/html; charset=utf-8", WEB_PAGE);
   });
   server.on("/api/status", HTTP_GET, handleStatus);
+  server.on("/api/readings", HTTP_GET, handleReadings);
+  server.on("/api/readings/commit", HTTP_POST, handleReadingsCommit);
+  server.on("/api/time", HTTP_POST, handleTime);
   server.on("/api/control", HTTP_POST, handleControl);
   server.on("/api/reset", HTTP_POST, handleReset);
   server.on("/api/calibrate", HTTP_POST, handleCalibration);

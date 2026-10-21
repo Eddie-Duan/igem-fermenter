@@ -1,4 +1,4 @@
-#include "./ble_log.h"
+#include "./log_store.h"
 #include "../control/control_manager.h"
 #include <SPIFFS.h>
 #include <limits.h>
@@ -6,7 +6,7 @@
 namespace {
 constexpr size_t HEADER_SIZE = 24;
 constexpr uint32_t LOG_MAGIC = 0x324c4246; // FBL2
-const char *paths[] = {"/fermenter-ble-a.bin", "/fermenter-ble-b.bin"};
+const char *paths[] = {"/fermenter-log-a.bin", "/fermenter-log-b.bin"};
 bool available = false;
 uint8_t active = 0;
 uint32_t generation = 0, first = 0, nextSeq = 0;
@@ -84,12 +84,12 @@ bool replaceLog(uint32_t keepFrom) {
 }
 }
 
-namespace BleLog {
+namespace LogStore {
 bool begin() {
   available = false;
   // Never automatically format a damaged/unformatted filesystem.
   if (!SPIFFS.begin(false)) {
-    Serial.println("# BLE log filesystem unavailable; with heating disabled use BLE_FORMAT once for a new board");
+    Serial.println("# Log filesystem unavailable; with heating disabled use LOG_FORMAT once for a new board");
     return false;
   }
   const Candidate a = inspect(0), b = inspect(1);
@@ -97,12 +97,12 @@ bool begin() {
   // numbers that the phone has stored. Preserve damaged files for recovery.
   const Candidate latest = b.headerValid && (!a.headerValid || b.generation > a.generation) ? b : a;
   if (latest.headerValid && !latest.valid) {
-    Serial.println("# BLE committed log damaged; refusing rollback or sequence reuse");
+    Serial.println("# Committed log damaged; refusing rollback or sequence reuse");
     return false;
   }
   if (!a.valid && !b.valid) {
     if (SPIFFS.exists(paths[0]) || SPIFFS.exists(paths[1])) {
-      Serial.println("# BLE logs damaged; originals retained. Export/recover before BLE_FORMAT");
+      Serial.println("# Logs damaged; originals retained. Export/recover before LOG_FORMAT");
       return false;
     }
     active = 1;
@@ -116,7 +116,7 @@ bool begin() {
     nextSeq = first + c.count;
     available = !c.tailDamaged || replaceLog(first);
   }
-  Serial.printf("# BLE log ready=%u oldest=%lu next=%lu count=%lu\n", available,
+  Serial.printf("# Log ready=%u oldest=%lu next=%lu count=%lu\n", available,
       (unsigned long)first, (unsigned long)nextSeq, (unsigned long)count());
   return available;
 }
@@ -136,6 +136,10 @@ bool read(uint32_t seq, uint8_t *frame) {
   LogRecord r;
   return f && f.seek(HEADER_SIZE + (seq - first) * RECORD_SIZE) &&
       f.read(frame, RECORD_SIZE) == RECORD_SIZE && recordDecode(frame, r) && r.seq == seq;
+}
+bool read(uint32_t seq, LogRecord &record) {
+  uint8_t frame[RECORD_SIZE];
+  return read(seq, frame) && recordDecode(frame, record);
 }
 bool append(float temperature, float ph, float od, uint32_t timestamp, uint32_t &seq) {
   // Full log stops new records rather than overwriting unacknowledged history.

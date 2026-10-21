@@ -1,58 +1,24 @@
-// BLE v1 wire definitions matching mobile_app/lib/ble/ble_protocol.dart.
-// Integration notes: ../APP_INTEGRATION.md. Keep UUIDs and frame layout stable.
+// 传感器记录与日志文件的格式定义（设备内部使用）。
+//
+// App 通过 HTTP 拿到的是 JSON 字段，本文件的定点编码只用于 flash 上定长
+// 存储：一条记录 20 字节，第 n 条的偏移是 `(seq - oldest) × 20`，
+// 同步时不需要索引表。HTTP 层负责把它展开成 JSON。
 #pragma once
 
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 
-// ===================== 服务与特征 UUID =====================
-#define BLE_SERVICE_UUID "4fafc201-1fb5-459e-8fcc-c5c9c331914b"
-#define BLE_CHAR_DEVICE_INFO "0000a101-0000-1000-8000-00805f9b34fb"  // Read
-#define BLE_CHAR_SENSOR_DATA "0000a102-0000-1000-8000-00805f9b34fb"  // Notify
-#define BLE_CHAR_SYNC_CONTROL "0000a103-0000-1000-8000-00805f9b34fb" // Write With Response
-#define BLE_CHAR_SYNC_STATUS "0000a104-0000-1000-8000-00805f9b34fb"  // Notify
-
-// 广播名：App 靠服务 UUID 过滤，名字只是给人看的。
-#define BLE_DEVICE_NAME "Fermenter-ESP32S3"
-
 // ===================== 记录格式 =====================
-// 一条记录正好一次 Notify（默认 ATT MTU 23 → 载荷 20 字节）。
 #define RECORD_SIZE 20
 #define RECORD_MAGIC 0xA5
 #define RECORD_VERSION 0x01
 
-// BLE 记录周期（秒）；本地传感器仍每5秒采样。App时间轴按seq × 此值换算，
-// 改这里必须同时改 mobile_app/lib/services/fermenter_controller.dart
-// 的 deviceSampleIntervalSeconds。
-#define SAMPLE_INTERVAL_S 120
-
 // flash 上最多保留多少条记录（20 B/条 → 2000 条约 40 KB）。
 #define LOG_CAPACITY 2000
 
-// 固件版本1.1.0；DeviceInfo首个u32，记录格式仍为v1。
+// 固件版本，对应 /api/status 的 firmware 字段。
 #define FIRMWARE_VERSION 0x00010100u
-
-// ===================== 手机 → 设备（SyncControl）=====================
-#define CMD_SYNC_REQ 0x01  // 0x01 + next_seq(u32)：从 next_seq 开始（含）回发
-#define CMD_ACK 0x02       // 0x02 + seq(u32)：该条已校验并落库
-#define CMD_SET_TIME 0x03  // 0x03 + timestamp(u32)：Unix 秒
-#define CMD_COMMIT 0x04    // 0x04 + last_seq(u32)：回收该序号及以前
-#define CMD_SET_CONTROL 0x10 // 0x10 + flags(u8) + rpm(u16) + target_c_x10(u16)
-
-// SET_CONTROL 的 flags 位。
-#define CTRL_FLAG_STIRRER 0x01
-#define CTRL_FLAG_HEATER 0x02
-
-// ===================== 设备 → 手机（SyncStatus）=====================
-#define ST_SYNC_END 0x81   // 0x81 + next_seq(u32)
-#define ST_ERROR 0x82      // 0x82 + code(u8)
-#define ST_LOG_STATUS 0x84 // 0x84 + oldest_seq(u32) + count(u32)
-
-#define ERR_INVALID_ARG 0x01
-#define ERR_BAD_FRAME 0x02
-#define ERR_FLASH_FAILURE 0x03
-#define ERR_BAD_SEQUENCE 0x04
 
 // ===================== 小端读写 =====================
 static inline uint16_t rdU16(const uint8_t *p)

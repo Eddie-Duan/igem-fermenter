@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../database/fermenter_repository.dart';
-import '../services/ble_device_manager.dart';
+import '../services/device_manager.dart';
 import '../services/fermenter_controller.dart';
 
 /// 新建批次：只在设备已连接时可用，批次创建后立即绑定设备并同步 flash 日志。
@@ -15,7 +15,7 @@ class NewProjectPage extends StatefulWidget {
   });
 
   final FermenterController controller;
-  final BleDeviceManager device;
+  final DeviceManager device;
 
   @override
   State<NewProjectPage> createState() => _NewProjectPageState();
@@ -55,7 +55,9 @@ class _NewProjectPageState extends State<NewProjectPage> {
           targetTempC: _targetTempC,
           timeScale: 1,
         ),
-        deviceLabel: device.connectedDevice?.displayName ?? 'FeroEase',
+        deviceLabel: device.isDemoDevice
+            ? 'Demo device'
+            : 'FeroEase (Wi-Fi)',
       );
       // 绑定 + 同步：绑定前不会有仿真点，同步失败也保持绑定（数据还在设备上）。
       await device.syncToProject(id);
@@ -187,7 +189,7 @@ class _NewProjectPageState extends State<NewProjectPage> {
   Widget _deviceCard() {
     final device = widget.device;
     final scheme = Theme.of(context).colorScheme;
-    final name = device.connectedDevice?.displayName;
+    final label = device.isDemoDevice ? 'the demo device' : device.address;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
@@ -197,13 +199,13 @@ class _NewProjectPageState extends State<NewProjectPage> {
       child: Row(
         children: [
           Icon(device.isConnected
-              ? Icons.bluetooth_connected
-              : Icons.bluetooth_disabled),
+              ? Icons.sensors
+              : Icons.sensors_off),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
               device.isConnected
-                  ? 'Readings come from ${name ?? 'the connected device'}. '
+                  ? 'Readings come from ${label ?? 'the connected device'}. '
                       'Records already in its flash log are pulled in now; '
                       'new samples keep arriving while the app is open.'
                   : 'No device connected. Connect FeroEase from the device '

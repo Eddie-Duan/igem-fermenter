@@ -1,41 +1,45 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 
-import '../ble/ble_client.dart';
-import '../services/ble_device_manager.dart';
+import '../device/device_client.dart';
+import '../models/control_state.dart';
+import '../services/device_manager.dart';
 import '../services/fermenter_controller.dart';
-import '../services/wifi_device_client.dart';
 import '../utils/format.dart';
 
-/// 连接 ESP32-S3：扫描 → 连接 → 选批次同步 → 下发控制。
+/// 连接 ESP32-S3：填地址 → 连接 → 选批次同步 → 下发控制。
 ///
-/// 没有硬件时用「演示设备」（[BleDeviceManager.connectDemoDevice]）走完全同一条链路。
+/// 设备始终开着一个配置热点（`192.168.4.1`），也可以先在设备网页里让它
+/// 连上路由器，再改用路由器地址。密码见设备串口日志。
+/// 没有硬件时用「演示设备」走完全同一条链路。
 class DevicePage extends StatefulWidget {
   const DevicePage({super.key, required this.controller, required this.manager});
 
   final FermenterController controller;
-  final BleDeviceManager manager;
+  final DeviceManager manager;
 
   @override
   State<DevicePage> createState() => _DevicePageState();
 }
 
 class _DevicePageState extends State<DevicePage> {
-  int? _selectedProjectId;
-  final _wifiClient = WifiDeviceClient();
-  final _wifiAddress = TextEditingController(text: '192.168.4.1');
-  final _wifiUser = TextEditingController(text: 'admin');
-  final _wifiPassword = TextEditingController();
-  Map<String, dynamic>? _wifiStatus;
-  bool _wifiBusy = false;
-  String? _wifiError;
-  Timer? _wifiPoller;
-  bool _wifiPolling = false;
-  double _wifiTarget = 30;
-  bool _wifiHeater = false;
+  final _address = TextEditingController(text: '192.168.4.1');
+  final _user = TextEditingController(text: 'admin');
+  final _password = TextEditingController();
+  final _target = TextEditingController(text: '30');
 
-  BleDeviceManager get manager => widget.manager;
+  int? _selectedProjectId;
+  bool _busy = false;
+  bool _heater = false;
+  DeviceManager get manager => widget.manager;
+
+  @override
+  void dispose() {
+    _address.dispose();
+    _user.dispose();
+    _password.dispose();
+    _target.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -53,17 +57,16 @@ class _DevicePageState extends State<DevicePage> {
                 children: [
                   _statusCard(),
                   const SizedBox(height: 16),
-                  _wifiCard(),
+                  _connectionCard(),
                   const SizedBox(height: 16),
-                  if (!manager.isConnected) ...[
-                    _scanCard(),
-                    const SizedBox(height: 16),
-                    _deviceList(),
-                  ] else ...[
+                  if (manager.isConnected) ...[
                     _deviceInfoCard(),
                     const SizedBox(height: 16),
+                    _controlCard(),
+                    const SizedBox(height: 16),
                     _syncCard(),
-                  ],
+                  ] else
+                    _demoCard(),
                   if (manager.error != null) ...[
                     const SizedBox(height: 16),
                     _noticeCard(manager.error!, isError: true),
@@ -82,115 +85,28 @@ class _DevicePageState extends State<DevicePage> {
     );
   }
 
-  Widget _wifiCard() {
-    final scheme = Theme.of(context).colorScheme;
-    final status = _wifiStatus;
-    return Card(
-      margin: EdgeInsets.zero,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('Connect over Wi-Fi', style: Theme.of(context).textTheme.titleSmall),
-          const SizedBox(height: 6),
-          Text('First connect this phone to the ESP32 hotspot in Wi-Fi settings or put both on the same router. The hotspot address is 192.168.4.1; the password is printed in the device serial log.',
-              style: TextStyle(fontSize: 12.5, color: scheme.onSurfaceVariant)),
-          const SizedBox(height: 10),
-          TextField(controller: _wifiAddress, decoration: const InputDecoration(labelText: 'Device IP address', hintText: '192.168.4.1', border: OutlineInputBorder(), isDense: true)),
-          const SizedBox(height: 8),
-          Row(children: [
-            Expanded(child: TextField(controller: _wifiUser, decoration: const InputDecoration(labelText: 'User', border: OutlineInputBorder(), isDense: true))),
-            const SizedBox(width: 8),
-            Expanded(child: TextField(controller: _wifiPassword, obscureText: true, decoration: const InputDecoration(labelText: 'Web password', border: OutlineInputBorder(), isDense: true))),
-          ]),
-          const SizedBox(height: 10),
-          FilledButton.icon(onPressed: _wifiBusy ? null : _connectWifi,
-            icon: _wifiBusy ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.wifi, size: 18),
-            label: Text(_wifiStatus == null ? 'Connect' : 'Refresh status')),
-          if (_wifiError != null) Padding(padding: const EdgeInsets.only(top: 8), child: Text(_wifiError!, style: TextStyle(color: scheme.error))),
-          if (status != null) ...[
-            const Divider(height: 22),
-            Text('Wi-Fi connected · ${status['staIp'] ?? status['apIp'] ?? _wifiAddress.text}', style: TextStyle(color: scheme.primary, fontWeight: FontWeight.w600)),
-            const SizedBox(height: 6),
-            Text('Temperature ${status['tempC'] ?? '—'} °C · pH ${status['ph'] ?? '—'} · optical ${status['odProxy'] ?? '—'}'),
-            Text('Heater ${status['heaterOn'] == true ? 'on' : 'off'} · alarm ${status['alarm'] == true ? 'active' : 'clear'}'),
-            const SizedBox(height: 8),
-            Row(children: [
-              SizedBox(width: 120, child: TextField(key: ValueKey(_wifiTarget), keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Target °C', border: OutlineInputBorder(), isDense: true), onChanged: (v) => _wifiTarget = double.tryParse(v) ?? _wifiTarget)),
-              const SizedBox(width: 10),
-              Expanded(child: SwitchListTile(contentPadding: EdgeInsets.zero, title: const Text('Auto heat'), value: _wifiHeater, onChanged: (v) => setState(() => _wifiHeater = v))),
-              IconButton(tooltip: 'Send Wi-Fi controls', onPressed: _wifiBusy ? null : _sendWifiControl, icon: const Icon(Icons.send)),
-            ]),
-          ],
-        ]),
-      ),
-    );
-  }
-
-  Future<void> _connectWifi() async {
-    setState(() { _wifiBusy = true; _wifiError = null; });
-    try {
-      final status = await _wifiClient.status(address: _wifiAddress.text, username: _wifiUser.text, password: _wifiPassword.text);
-      if (!mounted) return;
-      setState(() { _wifiStatus = status; _wifiTarget = (status['targetTempC'] as num?)?.toDouble() ?? 30; _wifiHeater = status['heaterEnabled'] == true; });
-      _wifiPoller ??= Timer.periodic(const Duration(seconds: 3), (_) => _pollWifi());
-    } catch (e) { if (mounted) setState(() => _wifiError = e.toString()); }
-    finally { if (mounted) setState(() => _wifiBusy = false); }
-  }
-
-  Future<void> _pollWifi() async {
-    if (_wifiBusy || _wifiPolling || !mounted) return;
-    _wifiPolling = true;
-    try {
-      final status = await _wifiClient.status(address: _wifiAddress.text, username: _wifiUser.text, password: _wifiPassword.text);
-      if (mounted) setState(() => _wifiStatus = status);
-    } catch (e) {
-      if (mounted) setState(() { _wifiPoller?.cancel(); _wifiPoller = null; _wifiStatus = null; _wifiError = e.toString(); });
-    } finally {
-      _wifiPolling = false;
-    }
-  }
-
-  Future<void> _sendWifiControl() async {
-    setState(() { _wifiBusy = true; _wifiError = null; });
-    try {
-      await _wifiClient.setControl(address: _wifiAddress.text, username: _wifiUser.text, password: _wifiPassword.text, targetTempC: _wifiTarget, heaterEnabled: _wifiHeater);
-      await _connectWifi();
-    } catch (e) { if (mounted) setState(() => _wifiError = e.toString()); }
-    finally { if (mounted) setState(() => _wifiBusy = false); }
-  }
-
-  @override
-  void dispose() {
-    _wifiPoller?.cancel();
-    _wifiClient.close();
-    _wifiAddress.dispose();
-    _wifiUser.dispose();
-    _wifiPassword.dispose();
-    super.dispose();
-  }
-
-  // -- 连接状态 --
+  // -- 状态 --
 
   Widget _statusCard() {
     final scheme = Theme.of(context).colorScheme;
     final (icon, label, color) = switch (manager.connection) {
-      BleConnectionStatus.connected => (
-          Icons.bluetooth_connected,
-          manager.connectedDevice?.displayName ?? 'Connected',
+      DeviceConnectionStatus.connected => (
+          Icons.wifi,
+          manager.address ?? 'Connected',
           scheme.primary,
         ),
-      BleConnectionStatus.connecting => (
-          Icons.bluetooth_searching,
+      DeviceConnectionStatus.connecting => (
+          Icons.wifi_find,
           'Connecting…',
           scheme.onSurfaceVariant,
         ),
-      BleConnectionStatus.failed => (
-          Icons.bluetooth_disabled,
+      DeviceConnectionStatus.failed => (
+          Icons.wifi_off,
           'Connection failed',
           scheme.error,
         ),
-      BleConnectionStatus.disconnected => (
-          Icons.bluetooth,
+      DeviceConnectionStatus.disconnected => (
+          Icons.wifi_off,
           'No device connected',
           scheme.onSurfaceVariant,
         ),
@@ -216,7 +132,7 @@ class _DevicePageState extends State<DevicePage> {
                     manager.isConnected
                         ? (manager.isDemoDevice
                             ? 'Demo device — the whole link is simulated.'
-                            : 'Connected to the fermenter over BLE.')
+                            : 'Connected to the fermenter over Wi-Fi.')
                         : 'Readings keep coming from the built-in simulator '
                             'until a device is connected.',
                     style: TextStyle(
@@ -227,7 +143,7 @@ class _DevicePageState extends State<DevicePage> {
             ),
             if (manager.isConnected)
               TextButton(
-                onPressed: () => manager.disconnect(),
+                onPressed: _busy ? null : _disconnect,
                 child: const Text('Disconnect'),
               ),
           ],
@@ -236,9 +152,11 @@ class _DevicePageState extends State<DevicePage> {
     );
   }
 
-  // -- 扫描 --
+  // -- 连接 --
 
-  Widget _scanCard() {
+  Widget _connectionCard() {
+    final scheme = Theme.of(context).colorScheme;
+    final connected = manager.isConnected;
     return Card(
       margin: EdgeInsets.zero,
       child: Padding(
@@ -246,94 +164,100 @@ class _DevicePageState extends State<DevicePage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Pair the fermenter',
+            Text('Connect over Wi-Fi',
                 style: Theme.of(context).textTheme.titleSmall),
             const SizedBox(height: 6),
             Text(
-              'Power the ESP32-S3, then scan. The device must advertise the '
-              'service UUID from docs/ble-gatt.md.',
-              style: TextStyle(
-                  fontSize: 12.5,
-                  color: Theme.of(context).colorScheme.onSurfaceVariant),
+              'Join the ESP32 hotspot on this phone (192.168.4.1), or use the '
+              'device web page to put both on the same router. The Web/hotspot '
+              'password is printed in the device serial log at boot.',
+              style: TextStyle(fontSize: 12.5, color: scheme.onSurfaceVariant),
             ),
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 10,
-              runSpacing: 8,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                FilledButton.icon(
-                  onPressed: manager.scanning
-                      ? () => manager.stopScan()
-                      : () => manager.startScan(),
-                  icon: manager.scanning
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2))
-                      : const Icon(Icons.search, size: 18),
-                  label: Text(manager.scanning ? 'Stop scan' : 'Scan'),
+            const SizedBox(height: 10),
+            TextField(
+              controller: _address,
+              enabled: !connected,
+              decoration: const InputDecoration(
+                  labelText: 'Device IP address',
+                  hintText: '192.168.4.1',
+                  border: OutlineInputBorder(),
+                  isDense: true),
+            ),
+            const SizedBox(height: 8),
+            Row(children: [
+              Expanded(
+                child: TextField(
+                  controller: _user,
+                  enabled: !connected,
+                  decoration: const InputDecoration(
+                      labelText: 'User',
+                      border: OutlineInputBorder(),
+                      isDense: true),
                 ),
-                TextButton.icon(
-                  onPressed: manager.scanning
-                      ? null
-                      : () => manager.connectDemoDevice(),
-                  icon: const Icon(Icons.smart_toy_outlined, size: 18),
-                  label: const Text('Use a demo device'),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: TextField(
+                  controller: _password,
+                  enabled: !connected,
+                  obscureText: true,
+                  decoration: const InputDecoration(
+                      labelText: 'Web password',
+                      border: OutlineInputBorder(),
+                      isDense: true),
+                ),
+              ),
+            ]),
+            const SizedBox(height: 10),
+            Row(children: [
+              FilledButton.icon(
+                onPressed: _busy ? null : _connect,
+                icon: _busy
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Icon(Icons.wifi, size: 18),
+                label: Text(connected ? 'Reconnect' : 'Connect'),
+              ),
+              if (connected) ...[
+                const SizedBox(width: 10),
+                OutlinedButton.icon(
+                  onPressed: _busy ? null : manager.refreshStatus,
+                  icon: const Icon(Icons.refresh, size: 18),
+                  label: const Text('Refresh'),
                 ),
               ],
-            ),
+            ]),
           ],
         ),
       ),
     );
   }
 
-  Widget _deviceList() {
-    final scheme = Theme.of(context).colorScheme;
-    if (manager.devices.isEmpty) {
-      return Card(
-        margin: EdgeInsets.zero,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 28),
-          child: Center(
-            child: Text(
-              manager.scanning ? 'Scanning…' : 'No device found yet.',
-              style: TextStyle(color: scheme.onSurfaceVariant),
-            ),
-          ),
-        ),
-      );
-    }
-    return Card(
-      margin: EdgeInsets.zero,
-      child: Column(
-        children: [
-          for (final device in manager.devices)
-            ListTile(
-              leading: const Icon(Icons.memory_outlined),
-              title: Text(device.displayName),
-              subtitle: Text('${device.id} · ${device.rssi} dBm',
-                  style: const TextStyle(fontSize: 12)),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => manager.connect(device),
-            ),
-        ],
-      ),
-    );
-  }
-
-  // -- 已连接 --
+  // -- 设备信息 --
 
   Widget _deviceInfoCard() {
     final scheme = Theme.of(context).colorScheme;
-    final info = manager.deviceInfo;
-    final log = manager.logStatus;
+    final status = manager.status;
+    final range = manager.logRange;
     final rows = <(String, String)>[
-      ('Firmware', info?.firmwareLabel ?? '—'),
-      ('Device ID', info?.mac ?? manager.connectedDevice?.id ?? '—'),
-      ('Device battery', info == null ? '—' : '${info.batteryMv} mV'),
-      ('Unsynchronised', log == null ? '—' : '${log.count} readings'),
+      ('Firmware', status?.firmwareLabel ?? '—'),
+      ('Device ID', status?.deviceId ?? '—'),
+      ('Transport', 'Wi-Fi (HTTP)'),
+      (
+        'Router IP',
+        (status == null || status.stationIp.isEmpty)
+            ? 'not connected'
+            : status.stationIp
+      ),
+      (
+        'Log',
+        range == null
+            ? '—'
+            : 'seq ${range.oldest}…${range.next} (${range.count} readings)'
+      ),
+      ('Record period', '${status?.sampleIntervalS ?? 120} s'),
     ];
     return Card(
       margin: EdgeInsets.zero,
@@ -366,12 +290,82 @@ class _DevicePageState extends State<DevicePage> {
     );
   }
 
+  // -- 控制 --
+
+  Widget _controlCard() {
+    final scheme = Theme.of(context).colorScheme;
+    final status = manager.status;
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Controls', style: Theme.of(context).textTheme.titleSmall),
+            const SizedBox(height: 6),
+            Text(
+              'Bind the device to a batch and its heater/stirrer settings are '
+              'pushed automatically; changing them in the batch page also '
+              'reaches the device. Use this row for a one-off change.',
+              style: TextStyle(fontSize: 12.5, color: scheme.onSurfaceVariant),
+            ),
+            const SizedBox(height: 10),
+            Row(children: [
+              SizedBox(
+                width: 120,
+                child: TextField(
+                  controller: _target,
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
+                  decoration: const InputDecoration(
+                      labelText: 'Target °C',
+                      border: OutlineInputBorder(),
+                      isDense: true),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Auto heat'),
+                  subtitle: Text(
+                    status?.stirrerSupported == true
+                        ? 'Stirrer output is wired on this build'
+                        : 'Stirrer output is not wired on this build',
+                    style: const TextStyle(fontSize: 11.5),
+                  ),
+                  value: _heater,
+                  onChanged: (value) => setState(() => _heater = value),
+                ),
+              ),
+            ]),
+            const SizedBox(height: 6),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: FilledButton.icon(
+                onPressed: _busy ? null : _sendControls,
+                icon: const Icon(Icons.send, size: 18),
+                label: const Text('Send to device'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // -- 同步 --
+
   Widget _syncCard() {
     final scheme = Theme.of(context).colorScheme;
     final projects = widget.controller.projects;
     final boundId = manager.boundProjectId;
     final bound =
         boundId == null ? null : widget.controller.projectById(boundId);
+    final current = _selectedProjectId ??
+        boundId ??
+        (projects.isEmpty ? null : projects.first.id);
 
     return Card(
       margin: EdgeInsets.zero,
@@ -380,11 +374,13 @@ class _DevicePageState extends State<DevicePage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Sync the flash log', style: Theme.of(context).textTheme.titleSmall),
+            Text('Sync the device log',
+                style: Theme.of(context).textTheme.titleSmall),
             const SizedBox(height: 6),
             Text(
               'Pick the batch these readings belong to. Records already on the '
-              'device are imported once; new samples keep arriving live.',
+              'device are imported once; the device only reclaims them after '
+              'the app confirms they are stored.',
               style: TextStyle(fontSize: 12.5, color: scheme.onSurfaceVariant),
             ),
             const SizedBox(height: 12),
@@ -399,9 +395,7 @@ class _DevicePageState extends State<DevicePage> {
                   isDense: true,
                 ),
                 child: DropdownButton<int>(
-                  value: _selectedProjectId ??
-                      boundId ??
-                      projects.first.id,
+                  value: current,
                   isExpanded: true,
                   underline: const SizedBox.shrink(),
                   onChanged: manager.syncing
@@ -434,17 +428,17 @@ class _DevicePageState extends State<DevicePage> {
                 Row(
                   children: [
                     FilledButton.icon(
-                      onPressed: () => manager.syncToProject(_selectedProjectId ??
-                          boundId ??
-                          projects.first.id),
+                      onPressed: current == null
+                          ? null
+                          : () => manager.syncToProject(current),
                       icon: const Icon(Icons.sync, size: 18),
                       label: const Text('Sync to batch'),
                     ),
                     const SizedBox(width: 10),
                     TextButton.icon(
-                      onPressed: () => manager.pushControl(boundId ??
-                          _selectedProjectId ??
-                          projects.first.id),
+                      onPressed: current == null
+                          ? null
+                          : () => manager.pushControl(current),
                       icon: const Icon(Icons.tune, size: 18),
                       label: const Text('Send controls'),
                     ),
@@ -461,7 +455,8 @@ class _DevicePageState extends State<DevicePage> {
                     child: Text(
                       'Bound to "${bound.name}" — '
                       '${simDurationLabel(bound.simSeconds)} recorded.',
-                      style: TextStyle(fontSize: 13, color: scheme.onSurfaceVariant),
+                      style: TextStyle(
+                          fontSize: 13, color: scheme.onSurfaceVariant),
                     ),
                   ),
                   TextButton(
@@ -471,6 +466,36 @@ class _DevicePageState extends State<DevicePage> {
                 ],
               ),
             ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _demoCard() {
+    final scheme = Theme.of(context).colorScheme;
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('No hardware at hand?',
+                style: Theme.of(context).textTheme.titleSmall),
+            const SizedBox(height: 6),
+            Text(
+              'The demo device follows the same connect → bind → sync → live '
+              'path, so the rest of the app behaves exactly like it does with '
+              'real hardware.',
+              style: TextStyle(fontSize: 12.5, color: scheme.onSurfaceVariant),
+            ),
+            const SizedBox(height: 12),
+            TextButton.icon(
+              onPressed: manager.connectDemoDevice,
+              icon: const Icon(Icons.smart_toy_outlined, size: 18),
+              label: const Text('Use a demo device'),
+            ),
           ],
         ),
       ),
@@ -504,5 +529,63 @@ class _DevicePageState extends State<DevicePage> {
         ),
       ),
     );
+  }
+
+  // -- 动作 --
+
+  Future<void> _connect() async {
+    setState(() => _busy = true);
+    try {
+      await manager.connect(
+        address: _address.text,
+        username: _user.text.trim().isEmpty ? 'admin' : _user.text.trim(),
+        password: _password.text,
+      );
+      final status = manager.status;
+      if (status != null && mounted) {
+        setState(() {
+          _target.text = status.targetTempC.toStringAsFixed(1);
+          _heater = status.heaterEnabled;
+        });
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _disconnect() async {
+    setState(() => _busy = true);
+    try {
+      await manager.disconnect();
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _sendControls() async {
+    final boundId = manager.boundProjectId;
+    if (boundId == null) {
+      setState(() {
+        manager.error = 'Bind the device to a batch first.';
+      });
+      return;
+    }
+    final project = widget.controller.projectById(boundId);
+    if (project == null) return;
+    setState(() => _busy = true);
+    try {
+      await widget.controller.setControl(
+        boundId,
+        ControlState(
+          stirrerOn: project.stirrerOn,
+          stirrerRpm: project.stirrerRpm,
+          heaterOn: _heater,
+          targetTempC: double.tryParse(_target.text) ?? project.targetTempC,
+        ),
+      );
+      await manager.pushControl(boundId);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
   }
 }

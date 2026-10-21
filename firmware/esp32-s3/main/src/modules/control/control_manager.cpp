@@ -14,6 +14,10 @@ float trendBuffer[Config::OD_WINDOW] = {};
 uint8_t trendIndex = 0, trendSize = 0;
 uint8_t fallingSamples = 0;
 
+bool stirrerReady = false;
+bool stirrerRequested = false;
+uint16_t stirrerRequestedRpm = 0;
+
 void setOutput(uint8_t pin, bool on, bool activeHigh) {
   digitalWrite(pin, (on == activeHigh) ? HIGH : LOW);
 }
@@ -76,6 +80,17 @@ void begin() {
   gState.heaterEnabled = false; // require explicit arming after each reset
   gState.lysisAlarm = false;
   updateAlarmOutput();
+  // 搅拌引脚可能和光学/传感器脚冲突，配置里用 static_assert 兜住了。
+  if (Config::STIRRER_ENABLED) {
+    pinMode(Config::STIRRER_PIN, OUTPUT);
+    digitalWrite(Config::STIRRER_PIN, LOW);
+    stirrerReady = ledcAttach(Config::STIRRER_PIN, Config::STIRRER_PWM_HZ,
+                              Config::STIRRER_PWM_BITS);
+    if (stirrerReady) ledcWrite(Config::STIRRER_PIN, 0);
+    Serial.printf("# Stirrer PWM ready=%u (open loop, RPM is not measured)\n", stirrerReady);
+  } else {
+    Serial.println("# Stirrer disabled in fermenter_config.h; control requests are acknowledged but not driven");
+  }
   preferences.begin("fermenter", false);
   gState.targetTempC = preferences.getFloat("target", Config::DEFAULT_TARGET_TEMP_C);
   if (!isfinite(gState.targetTempC) || gState.targetTempC < 5.0f ||
@@ -139,6 +154,24 @@ void clearAlarm() {
   gState.lysisAlarm = false;
   resetTrend();
   updateAlarmOutput();
+}
+
+bool stirrerSupported() { return stirrerReady; }
+bool stirrerOn() { return stirrerRequested && stirrerReady; }
+uint16_t stirrerRpm() { return stirrerRequested ? stirrerRequestedRpm : 0; }
+
+/// 开环 PWM：rpm 只用于线性映射占空比，不读取实际转速。
+void setStirrer(bool enabled, uint16_t rpm) {
+  stirrerRequested = enabled;
+  stirrerRequestedRpm = enabled ? rpm : 0;
+  if (!stirrerReady) return;
+  uint32_t duty = 0;
+  if (enabled) {
+    const uint16_t clamped = constrain(rpm, Config::STIRRER_MIN_RPM, Config::STIRRER_MAX_RPM);
+    duty = map(clamped, Config::STIRRER_MIN_RPM, Config::STIRRER_MAX_RPM,
+               Config::STIRRER_MIN_DUTY, Config::STIRRER_MAX_DUTY);
+  }
+  ledcWrite(Config::STIRRER_PIN, duty);
 }
 }
 

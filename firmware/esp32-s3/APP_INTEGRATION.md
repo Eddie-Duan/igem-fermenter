@@ -1,76 +1,120 @@
-# 项目思路与固件适配说明
+# 固件与 App 的对接说明
 
-## 一、软件实际结构
+## 一、软件结构
 
-| 层 | 现有 App 文件 | 作用 |
+| 层 | App 文件 | 作用 |
 |---|---|---|
 | 页面 | `pages/home_page.dart`、`project_detail_page.dart`、`device_page.dart` | 批次管理、曲线、控制、设备连接 |
-| 批次业务 | `services/fermenter_controller.dart` | 仿真与真实设备数据、实验时间轴、控制状态、收获判断 |
-| 蓝牙管理 | `services/ble_device_manager.dart` | 扫描连接、绑定批次、同步、自动下发控制 |
-| 同步 | `ble/ble_sync_service.dart` | 校时 → 请求序号 → 数据落库 → ACK → 同步结束 → COMMIT |
-| 协议 | `ble/ble_protocol.dart` | UUID、20 字节帧、CRC、控制与状态编码 |
-| 平台通信 | `ble/reactive_ble_client.dart` | flutter_reactive_ble 与 Android BLE |
-| 数据库/导出 | `database/`、`services/csv_export_service.dart` | SQLite 保存与 CSV 分享 |
+| 批次业务 | `services/fermenter_controller.dart` | 仿真与设备数据、实验时间轴、控制状态、收获判断 |
+| 设备管理 | `services/device_manager.dart` | 连接、绑定批次、同步、自动下发控制 |
+| 同步 | `device/device_sync_service.dart` | 校时 → 分页拉取 → 落库 → 回收 |
+| 传输 | `device/http_device_client.dart` | 设备本地 HTTP API（Basic Auth） |
+| 数据模型 | `device/device_client.dart` | 状态/读数/分页结构 |
 
-这个 App 是 BLE 本地实验管理软件；MQTT 不是它目前的设备接口。原固件示例还存在 GPIO5 搅拌/测量 LED 冲突、与真实标定方式不一致、缺失的协议文档链接等问题。本次以真实采集模块为基础，按 App 已实现的字节协议增加 BLE 接口。
+设备端对应实现：
 
-## 二、适配后的数据流
+- `src/modules/network/network_manager.cpp`：网页与 `/api/*`
+- `src/modules/log/log_store.cpp`：双文件定长日志（20 字节/条）
+- `src/modules/log/record_format.h`：日志记录编码与 CRC
+- `src/app/fermenter_app.cpp`：5 秒采样 + 120 秒记录
+
+## 二、数据流
 
 ```mermaid
 flowchart LR
-  T[DS18B20] --> S[传感器模块：约5秒采样]
-  P[pH调理模块] --> S
+  T[DS18B20] --> S[传感器：约5秒采样]
+  P[pH 调理模块] --> S
   L[LED + TSL2591] --> S
   S --> G[gState + 标定 + 趋势]
   G --> H[回差温控 / 继电器 / 蜂鸣器]
-  G --> W[原 Wi-Fi 网页 / 串口 / 可选 MQTT]
+  G --> W[本地网页 / 串口 / 可选 MQTT]
   G --> V[有效完整数据：每120秒]
-  V --> F[SPIFFS持久日志]
-  F --> B[BLE：20字节记录 / ACK重传]
-  B --> A[Flutter同步服务 → SQLite → 曲线/CSV]
-  A --> C[加热/目标温度控制帧]
-  C --> Q[BLE回调队列 → 主循环校验]
-  Q --> H
+  V --> F[SPIFFS 定长日志]
+  F --> A[HTTP /api/readings → Flutter → SQLite → 曲线/CSV]
+  A --> C[/api/control 加热、目标温度、搅拌/]
+  C --> H
 ```
 
-BLE 回调只入队，传感器状态、执行器、NVS 和日志操作均由主循环处理，避免蓝牙任务与采样模块同时修改状态。通知先检查客户端是否订阅。断线后重新广播；旧会话命令不会带入新连接。
+## 三、HTTP 接口
 
-## 三、协议对照
+所有接口使用 HTTP Basic Auth：用户名 `admin`，密码为设备启动时打印的
+`webpass`（同时也是配置热点密码）。成功返回 2xx + JSON；失败返回
+`{"error":"..."}`，401 表示密码错误。
 
-服务 UUID：`4fafc201-1fb5-459e-8fcc-c5c9c331914b`。
-
-| 特征 | 属性 | 内容 |
+| 方法 | 路径 | 说明 |
 |---|---|---|
-| `0000a101-0000-1000-8000-00805f9b34fb` | Read | 16字节：版本、蓝牙MAC、电池、日志容量 |
-| `0000a102-0000-1000-8000-00805f9b34fb` | Notify | 20字节传感器记录 |
-| `0000a103-0000-1000-8000-00805f9b34fb` | Write with response | 同步、ACK、校时、COMMIT、控制 |
-| `0000a104-0000-1000-8000-00805f9b34fb` | Notify | 同步结束、错误、日志范围 |
+| GET | `/api/status` | 设备状态与日志游标 |
+| GET | `/api/readings?since=<seq>&limit=<n>` | 按序号读取日志，`since` 含端点，`limit` 上限 200（默认 60） |
+| POST | `/api/readings/commit` | 表单 `last=<seq>`，回收该序号及以前 |
+| POST | `/api/control` | 表单 `target`、`heater`，可选 `stirrer`、`rpm` |
+| POST | `/api/time` | 表单 `now=<Unix 秒>`，手机校时 |
+| POST | `/api/wifi` | 表单 `ssid`、`password`，让设备接入路由器 |
+| POST | `/api/calibrate`、`/api/ph/calibrate` 等 | 网页标定接口 |
 
-记录采用小端序：magic `A5`、版本 `01`、seq(u32)、Unix秒(u32)、温度×100(i16)、pH×100(i16)、光学值×1000(i16)、电池mV(u16)、CRC16(u16)。CRC为 CCITT-FALSE，覆盖前18字节，初值FFFF、多项式1021。固件版本号为1.1.0，保持v1帧布局。
+### `/api/status` 主要字段
 
-没有电池测量电路，电池字段为0，不能解释为已测得电池电压。光学字段沿用 App 的 `od` 名称，但实际为 CH0 明暗差分计算的相对光衰减；传输时负值夹到0，以兼容 App，尚未标定为 OD600。网页和串口保留原测量语义。
+| 字段 | 含义 |
+|---|---|
+| `apiVersion` | 接口版本，当前为 `1`；App 用它判断固件是否支持同步 |
+| `firmware` | 形如 `1.1.0` |
+| `deviceId` | Wi-Fi MAC（无冒号），用于区分板子 |
+| `oldestSeq` / `nextSeq` / `recordCount` / `logCapacity` / `logReady` | 日志范围与状态 |
+| `sampleIntervalS` | 记录周期（秒），App 用它换算时间轴 |
+| `tempC` / `ph` / `odProxy` / `slopePerMin` | 当前读数；无效时为 `null` |
+| `heaterEnabled` / `heaterOn` / `targetTempC` | 温控状态 |
+| `stirrerSupported` / `stirrerOn` / `stirrerRpm` | 搅拌（开环 PWM，未接线时为 `false`） |
+| `alarm` | 下降趋势报警 |
+| `staIp` / `apIp` | 路由器地址 / 热点地址 |
 
-命令：`01+nextSeq` 从该序号开始；`02+seq` 确认已落库；`03+Unix秒` 校时；`04+lastSeq` 请求回收；`10+flags+rpm(u16)+target×10(u16)` 设置控制。bit0搅拌、bit1自动加热。状态为81同步结束、82错误、84日志状态。
+### `/api/readings` 响应
+
+```json
+{
+  "oldest": 120, "next": 138, "count": 18, "since": 120,
+  "records": [
+    {"seq": 120, "timestamp": 1761000000, "tempC": 30.42, "ph": 7.05, "od": 0.412, "batteryMv": 0}
+  ],
+  "returned": 1, "hasMore": true
+}
+```
+
+`timestamp` 为 Unix 秒；设备未校时时为 `0`，App 用手机时间占位。
+`od` 实际是相对光衰减（沿用 App 曲线位），**不是已标定的 OD600**。
+`batteryMv` 恒为 0：这版硬件没有电池采样电路。
+
+### `/api/control`
+
+`stirrer`、`rpm` 是可选字段：不传就不改动当前搅拌状态（网页温控表单就不带
+它们）。目标温度须在 5 °C 与软件过温上限之间；转速须在 100–300 rpm。
 
 ## 四、同步与存储规则
 
-- 一次发送一条，等对应序号 ACK 才前进；未来序号或无对应待发帧的 ACK 不会授权回收。超时重发两次，再报错停止，保留数据等待重连。
-- 同步开始固定一个历史快照终点，收到最后一条 ACK 后才发 SYNC_END；随后继续实时发送新日志，避免历史与实时帧乱序。
-- 请求从非最早序号开始时，会补发前一条作为重复记录。App 已有重复处理逻辑，会再次 ACK，因此无新数据的同步也能安全证明 COMMIT 边界。
-- COMMIT 不能超过本连接实际收到的 ACK 水位，不接受FFFFFFFF。日志满时不覆盖未确认数据。
-- SPIFFS 使用A/B两个版本文件，重写时先复制保留记录，最后写入带CRC的头，再切换活动文件；启动扫描CRC及连续序号。空日志仍保存下一序号，正常重启/回收不回退序号。
-- 不自动格式化文件系统，不主动清空NVS；挂载失败保留现场。`BLE_FORMAT` 是用户通过串口执行的显式初始化/清空命令。
-- 手机校时前时间戳为0，沿用App的手机时间占位逻辑；不把断电前的旧时间冒充当前时间。重连后App会再次校时。
+1. App 先 `POST /api/time` 校时，再按本地记录的游标请求
+   `/api/readings?since=<cursor>`。
+2. 设备把 `since` 夹到 `[oldest, next]`，一次最多返回 `limit` 条。
+3. App 逐页落库；只有整轮全部落库后才调用 `/api/readings/commit`。
+   中途失败不回收，设备上的数据还在，下次重来。
+4. 同步开始时的 `next` 作为上界：同步期间新写入的记录留给下一次，避免乱序。
+5. 日志满 2000 条后停止新增记录，而不是覆盖未同步数据。
+6. SPIFFS 使用 A/B 两个版本文件：重写时先复制保留记录，最后写入带 CRC 的头，
+   再切换活动文件；启动时扫描 CRC 与连续序号。空日志仍保存下一序号，正常重启
+   或回收都不回退序号。
+7. 不自动格式化文件系统，不主动清空 NVS；挂载失败保留现场。`LOG_FORMAT` 是
+   用户通过串口执行的显式初始化/清空命令。
 
-## 五、保持原 App 时必须理解的边界
+## 五、使用边界
 
-1. App 固定 `deviceSampleIntervalSeconds=120`，所以保留5秒本地温控，另外每120秒记录BLE数据。App收获检测的窗口也按120秒数据运行，和固件5秒蜂鸣器报警的时间尺度不同，不能声称两边报警同时触发。
-2. v1没有无效位；缺失温度、未标定pH、未标定光路等情况会暂缓BLE记录。恢复后序号连续，但App的 `seq×120` 横轴无法体现停机和无效期间的真实时长，应参考记录的绝对时间戳。需要精确缺测曲线时应升级App的数据模型与协议。
-3. App没有pH/光学标定指令，没有控制状态读回/成功回执，也没有设备报警位。固件错误会发82状态帧，但App在非同步阶段目前只在内部记录 `lastFailure`，因此界面控件变化不代表设备接受了控制。请核对串口日志或本地网页的真实状态；默认搅拌关闭、目标5℃至小于39.5℃。
-4. 沿用当前App的单设备、单批次同步游标逻辑。请把一台设备连续日志绑定到同一真实批次，不要把演示/仿真记录混入同一批次；新批次的seq并不会自动归零。切换设备或多批次分段管理需要App补充设备ID与批次起始序号，不能只改固件解决。
-5. App没有配对鉴权交互。本BLE版本兼容其现有连接流程，附近可连接设备的客户端能够发送控制指令；适用于受控实验环境，开放部署前需在App和固件双方增加认证。
-6. 可选搅拌仅提供开环PWM映射，默认禁用；没有硬件反馈时不报告“实际RPM”。目前没有主动制冷、自动酸碱添加或pH温度补偿。
+1. App 固定 `deviceSampleIntervalSeconds = 120`，所以固件保留 5 秒本地温控与
+   网页刷新，另外每 120 秒记录一条供 App 同步。App 的收获检测窗口按 120 秒
+   数据运行，与固件 5 秒蜂鸣器报警的时间尺度不同，两者不会同时触发。
+2. 记录没有无效位：缺失温度、未标定 pH、未标定光路时会暂缓记录，恢复后序号
+   继续连续。App 的 `seq × 120` 横轴无法体现停机时长，应参考记录的绝对时间戳。
+3. App 没有 pH/光学标定接口，也没有控制成功回执。请以网页或串口日志为准。
+4. 沿用单设备、单批次同步游标逻辑。请把一台设备的连续日志绑定到同一个真实
+   批次，不要把演示/仿真记录混入同一批次。
+5. 接口使用 HTTP + Basic Auth，适用于受控实验局域网；不要直接暴露到公网。
 
 ## 六、构建与验证范围
 
-本次不修改手机App，不增加或运行测试。Arduino构建结果单独记录在 `BUILD_RECORD.md`；没有连接实物进行蓝牙同步、传感器精度、长期存储或温控效果测量。
+手机端：`flutter analyze` + `flutter test`。固件：Arduino IDE 编译；没有连接
+实物进行传感器精度、长期存储或温控效果测量。

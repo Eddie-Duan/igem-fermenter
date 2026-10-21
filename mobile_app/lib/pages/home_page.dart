@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/fermentation_project.dart';
-import '../services/ble_device_manager.dart';
+import '../services/device_manager.dart';
 import '../services/fermenter_controller.dart';
 import '../utils/format.dart';
 import '../widgets/feature_row.dart';
@@ -12,7 +12,7 @@ import 'onboarding_page.dart';
 import 'project_detail_page.dart';
 
 /// 欢迎页的统一口径：真实批次要连设备，样例批次才是模拟数据。
-const String _simulationNote = 'Connect FeroEase over Bluetooth to start a real '
+const String _simulationNote = 'Connect FeroEase over Wi-Fi to start a real '
     'batch. "Load sample data" creates a demo batch with simulated readings.';
 
 class HomePage extends StatefulWidget {
@@ -29,10 +29,10 @@ class _HomePageState extends State<HomePage> {
 
   /// 设备连接的状态机，AppBar 入口与设备页共用。
   ///
-  /// BLE 客户端是懒创建的：没有点进设备页、没有开始扫描之前不会碰平台通道，
+  /// HTTP 客户端是懒创建的：没有点进设备页、没有连接之前不会发网络请求，
   /// 所以既有的 widget 测试照旧能跑。
-  late final BleDeviceManager _device =
-      BleDeviceManager(controller: widget.controller);
+  late final DeviceManager _device =
+      DeviceManager(controller: widget.controller);
 
   FermenterController get data => widget.controller;
 
@@ -65,7 +65,7 @@ class _HomePageState extends State<HomePage> {
   Future<void> _openNewProject() async {
     if (!_device.isConnected) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: const Text('Connect FeroEase over Bluetooth to start a batch.'),
+        content: const Text('Connect FeroEase over Wi-Fi to start a batch.'),
         action: SnackBarAction(label: 'Connect', onPressed: _openDevicePage),
       ));
       return;
@@ -144,8 +144,8 @@ class _HomePageState extends State<HomePage> {
                     ? 'Device connected'
                     : 'Connect the fermenter',
                 icon: Icon(_device.isConnected
-                    ? Icons.bluetooth_connected
-                    : Icons.bluetooth)),
+                    ? Icons.wifi
+                    : Icons.wifi_off)),
             IconButton(
                 onPressed: _replayOnboarding,
                 tooltip: 'How it works',

@@ -7,7 +7,7 @@ abstract class SensorSource {
   /// 仿真设备恒为 true；真实设备为 false（UI 用）。
   bool get isSimulated;
 
-  /// 来源标记，写入 readings.source（'sim' / 将来 'ble'/'wifi'）。
+  /// 来源标记，写入 readings.source（'sim' / 'device'）。
   String get source;
 
   /// 前进一次采样。

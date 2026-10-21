@@ -20,9 +20,6 @@ dependencies:
   path_provider: ^2.1.5
   # 导出 CSV 分享。
   share_plus: ^10.1.4
-  # 与 ESP32-S3 的 BLE 通信（与参考项目 esp32-medication-device 同版本）。
-  # 只有 lib/ble/reactive_ble_client.dart 直接依赖它。
-  flutter_reactive_ble: 5.5.0
 
 dev_dependencies:
   flutter_test:
