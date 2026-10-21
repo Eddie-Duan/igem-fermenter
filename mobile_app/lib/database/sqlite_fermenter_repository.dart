@@ -23,7 +23,7 @@ class SqliteFermenterRepository implements FermenterRepository {
     final db = await dbFactory.openDatabase(
       dbPath,
       options: OpenDatabaseOptions(
-        version: 2,
+        version: 3,
         singleInstance: false,
         onConfigure: (db) async {
           await db.execute('PRAGMA synchronous = FULL');
@@ -33,6 +33,11 @@ class SqliteFermenterRepository implements FermenterRepository {
           if (oldVersion < 2) {
             await db.execute(
                 'ALTER TABLE projects ADD COLUMN device_label TEXT');
+          }
+          // v3：传输层已改为 Wi-Fi/HTTP，把历史设备读数的旧来源标记归一。
+          if (oldVersion < 3) {
+            await db.execute(
+                "UPDATE readings SET source = 'device' WHERE source = 'ble'");
           }
         },
         onCreate: (db, version) async {

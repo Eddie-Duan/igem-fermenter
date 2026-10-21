@@ -24,11 +24,10 @@ class SensorReading {
   final String? note;
 
   /// 'sim' = 仿真；'manual' = 手动录入；'device' = 设备同步。
-  /// 早期版本用 'ble' 标记设备读数，读取时要一并当作设备数据。
   final String source;
 
-  /// 是否来自设备（兼容历史的 'ble' 标记）。
-  bool get isDeviceReading => source == 'device' || source == 'ble';
+  /// 是否来自设备。
+  bool get isDeviceReading => source == 'device';
 
   double get simHours => simSeconds / 3600;
 

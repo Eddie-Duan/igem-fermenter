@@ -1,7 +1,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET" />
 
-    <!-- 设备通过同一个局域网/热点上的 HTTP 接口通信，不需要蓝牙权限。 -->
+    <!-- 设备通过同一个局域网/热点上的 HTTP 接口通信。 -->
     <uses-feature
         android:name="android.hardware.wifi"
         android:required="false" />

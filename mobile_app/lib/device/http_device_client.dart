@@ -6,7 +6,7 @@ import 'device_client.dart';
 
 /// ESP32-S3 本地 HTTP API 客户端（Basic Auth）。
 ///
-/// 端点与字段见 `docs/wifi-api.md`，固件实现在
+/// 端点与字段见 `firmware/esp32-s3/APP_INTEGRATION.md`，固件实现在
 /// `firmware/esp32-s3/main/src/modules/network/network_manager.cpp`。
 class HttpDeviceClient implements DeviceClient {
   HttpDeviceClient({HttpClient? httpClient})

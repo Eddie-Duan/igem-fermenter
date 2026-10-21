@@ -38,7 +38,7 @@ class FermenterController extends ChangeNotifier implements DeviceReadingSink {
   static const int deviceSampleIntervalSeconds = 120;
 
   /// 手动读数使用的序号起点。设备记录占 0…n，手动读数从这里往上走，
-  /// 避免两条不同来源的读数撞号、被 BLE 同步的去重逻辑误判成重复包。
+  /// 避免两条不同来源的读数撞号、被设备同步的去重逻辑误判成重复包。
   static const int manualSeqBase = 1000000;
 
   final FermenterRepository repository;
@@ -52,7 +52,7 @@ class FermenterController extends ChangeNotifier implements DeviceReadingSink {
   final Map<int, HarvestVerdict> _verdicts = {};
   final Map<int, List<SensorReading>> _readings = {};
 
-  /// 已绑定 BLE 设备的批次 → 设备名。绑定期间该批次不再跑本地仿真。
+  /// 已绑定设备的批次 → 设备名。绑定期间该批次不再跑本地仿真。
   ///
   /// 只存在内存里：App 重启后需要重新连接设备（设备侧数据在 flash 上，
   /// 重新同步不会丢）。
