@@ -49,7 +49,22 @@ jobs:
       - name: Prepare Android SDK 36
         run: |
           set -euo pipefail
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" 'platforms;android-36' 'build-tools;36.0.0'
+          sdkmanager="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          # The app declares flutter.ndkVersion (28.2.13676358 for Flutter 3.47.4).
+          # Letting AGP install it mid-build has failed on a truncated download
+          # ("Error on ZipFile unknown archive"), so install it here with retries.
+          for attempt in 1 2 3; do
+            if "$sdkmanager" --sdk_root="$ANDROID_HOME" \
+                 'platforms;android-36' 'build-tools;36.0.0' 'ndk;28.2.13676358'; then
+              break
+            fi
+            echo "sdkmanager failed (attempt $attempt); retrying" >&2
+            sleep 10
+            if [ "$attempt" = 3 ]; then
+              exit 1
+            fi
+          done
+          ls -1 "$ANDROID_HOME/ndk"
       - name: Analyze and test
         run: |
           set -euo pipefail
